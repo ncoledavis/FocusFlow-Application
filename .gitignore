@@ -1,0 +1,19 @@
+# Xcode / build
+DerivedData/
+build/
+*.xcworkspace
+!default.xcworkspace
+
+# xcodegen generates this from project.yml
+FocusFlow.xcodeproj/
+
+# macOS
+.DS_Store
+
+# User-specific Xcode state
+xcuserdata/
+*.xcuserstate
+
+# SwiftPM
+.swiftpm/
+.build/
