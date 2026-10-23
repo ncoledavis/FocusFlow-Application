@@ -60,6 +60,24 @@ Protocol definitions only, so the concrete Firebase/EventKit/Google/mock impleme
 - `FocusFlowApp` — the SwiftUI app entry point.
 - `RootView` — a placeholder screen so the app launches; it will be replaced by the auth-vs-main router in Task 2.
 
+## Effort estimate
+
+Task 1 represents roughly **3 hours** of equivalent hands-on work, broken down across the sub-tasks:
+
+| Sub-task | Work | Est. time |
+| --- | --- | --- |
+| 1.1 | New Xcode project (XcodeGen spec, iOS 17 target, app + test targets) | 20 min |
+| 1.2 | Top-level folders/groups (Views, ViewModels, Models, Services, Adapters, Resources, Tests) | 10 min |
+| 1.3 | SwiftLint setup and `.swiftlint.yml` configuration | 15 min |
+| 1.4 | Define enums (Priority, TaskStatus, ScheduleType, LinkPermission, LinkStatus) | 20 min |
+| 1.5 | Define Codable model structs (AppUser, TaskItem, SupporterLink) | 25 min |
+| 1.6 | TaskItem computed time model (targetFinishAt, timeRemaining, isOverdue) | 25 min |
+| 1.7 | Service protocols (AuthService, TaskRepository, LinkRepository, CalendarProvider) | 15 min |
+| 1.8 | App entry point and placeholder root view | 10 min |
+| 1.9 | Unit tests for Codable round-trips and time-model logic | 25 min |
+| — | Build/test/lint verification and fixing the issues found (see below) | 15 min |
+| **Total** | | **3 hours** |
+
 ## What was tested
 
 Unit tests live in `FocusFlowTests/`. **14 tests, all passing.**
