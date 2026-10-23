@@ -62,7 +62,6 @@ Protocol definitions only, so the concrete Firebase/EventKit/Google/mock impleme
 
 ## Effort estimate
 
-Task 1 represents roughly **3 hours** of equivalent hands-on work, broken down across the sub-tasks:
 
 | Sub-task | Work | Est. time |
 | --- | --- | --- |
