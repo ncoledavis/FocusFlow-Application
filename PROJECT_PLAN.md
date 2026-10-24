@@ -54,18 +54,19 @@ Login: email/password in Task 2, with Google Sign-In added in Task 7 for calenda
 - Demo: app builds and launches to a placeholder screen; model tests pass.
 
 ### Task 2: Firebase integration and authentication
-- [ ] 2.1 Create the Firebase project in the console; register the iOS bundle ID.
-- [ ] 2.2 Add the Firebase SDK via SPM; include only FirebaseAuth and FirebaseFirestore.
-- [ ] 2.3 Add GoogleService-Info.plist to the project; configure Firebase in the app entry point.
-- [ ] 2.4 Enable Email/Password sign-in in the Firebase Auth console.
-- [ ] 2.5 Define the AuthService protocol methods: signUp, signIn, signOut, currentUser publisher.
-- [ ] 2.6 Implement FirebaseAuthService conforming to AuthService.
-- [ ] 2.7 Build AuthViewModel with form state, validation, and error handling.
-- [ ] 2.8 Build the Login view (email, password, sign-in button, error display).
-- [ ] 2.9 Build the Sign-Up view and navigation between login/sign-up.
-- [ ] 2.10 Build the root router view that shows auth vs. main app based on session state.
-- [ ] 2.11 Create MockAuthService and write AuthViewModel tests (success, bad credentials, sign-out).
+- [ ] 2.1 Create the Firebase project in the console; register the iOS bundle ID. _(manual — Firebase console; bundle id is `com.focusflow.app`)_
+- [x] 2.2 Add the Firebase SDK via SPM; include only FirebaseAuth and FirebaseFirestore.
+- [~] 2.3 Add GoogleService-Info.plist to the project; configure Firebase in the app entry point. _(code done via FirebaseConfig; drop in the plist from the console to activate)_
+- [ ] 2.4 Enable Email/Password sign-in in the Firebase Auth console. _(manual — Firebase console)_
+- [x] 2.5 Define the AuthService protocol methods: signUp, signIn, signOut, currentUser publisher.
+- [x] 2.6 Implement FirebaseAuthService conforming to AuthService.
+- [x] 2.7 Build AuthViewModel with form state, validation, and error handling.
+- [x] 2.8 Build the Login view (email, password, sign-in button, error display).
+- [x] 2.9 Build the Sign-Up view and navigation between login/sign-up.
+- [x] 2.10 Build the root router view that shows auth vs. main app based on session state.
+- [x] 2.11 Create MockAuthService and write AuthViewModel tests (success, bad credentials, sign-out).
 - Demo: create an account, log in, see a home screen, log out; session persists across relaunch.
+- Note: items 2.1, 2.3 (plist), and 2.4 require Firebase console access. Until the plist is added, the app runs against MockAuthService so the full flow is still demoable.
 
 ### Task 3: Task data layer with Firestore
 - [ ] 3.1 Design the Firestore tasks collection shape and document the fields.

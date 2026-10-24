@@ -1,25 +1,35 @@
 import SwiftUI
 
-/// Placeholder root view so the app launches. Replaced in Task 2 by a router
-/// that switches between the auth flow and the main app based on session state.
+/// Root router (Task 2.10). Shows the auth flow when signed out and the main
+/// app when signed in, reacting to session changes from the `SessionViewModel`.
 struct RootView: View {
+    @StateObject private var session: SessionViewModel
+    private let authService: AuthService
+
+    init(authService: AuthService) {
+        self.authService = authService
+        _session = StateObject(wrappedValue: SessionViewModel(authService: authService))
+    }
+
     var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "checklist")
-                .font(.system(size: 64, weight: .semibold))
-                .foregroundStyle(.tint)
-
-            Text("FocusFlow")
-                .font(.largeTitle.bold())
-
-            Text("One task at a time.")
-                .font(.title3)
-                .foregroundStyle(.secondary)
+        Group {
+            if session.isSignedIn {
+                HomeView()
+                    .environmentObject(session)
+            } else {
+                AuthView(authService: authService)
+            }
         }
-        .padding()
+        .animation(.default, value: session.isSignedIn)
     }
 }
 
-#Preview {
-    RootView()
+#Preview("Signed out") {
+    RootView(authService: MockAuthService())
+}
+
+#Preview("Signed in") {
+    RootView(authService: MockAuthService(
+        startingUser: AppUser(id: "preview", email: "demo@focusflow.app")
+    ))
 }
