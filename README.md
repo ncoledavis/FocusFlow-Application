@@ -130,13 +130,13 @@ Roughly **3 hours** of work. The result: the app builds, launches to a placehold
 
 ## Task 2 — Firebase integration and authentication
 
-Roughly **3 hours** of work. The result: a complete email/password auth flow — sign up, sign in, sign out, a session router, and session restoration — that builds, runs, and is fully tested against a mock backend, ready to flip to live Firebase the moment the console config is dropped in.
+The result: a complete email/password auth flow — sign up, sign in, sign out, a session router, and session restoration — that builds, runs, and is fully tested against a mock backend, ready to flip to live Firebase the moment the console config is dropped in.
 
 ### What was built
 
 **Firebase + SPM**
 - Added the Firebase SDK via Swift Package Manager in `project.yml`, pulling **only** `FirebaseAuth` and `FirebaseFirestore` (pinned to the 13.x range), per the plan.
-- `FirebaseConfig` configures Firebase at launch **only if** a `GoogleService-Info.plist` is bundled, and reports whether it's configured. In DEBUG it logs either `Firebase configured ✓` or a "plist not found, using mock" message. This keeps the app buildable and runnable before any console setup.
+- `FirebaseConfig` configures Firebase at launch and reports whether it's configured. In DEBUG it logs either `Firebase configured ✓` or a "plist not found, using mock" message. This keeps the app buildable and runnable before any console setup.
 
 **Auth service layer**
 - `AuthService` protocol finalized with `signUp`, `signIn`, `signOut`, a synchronous `currentUser`, and a `currentUserPublisher`.
@@ -188,8 +188,6 @@ Roughly **3 hours** of work. The result: a complete email/password auth flow —
 | 2.11 | `MockAuthService` + `AuthViewModel`/session tests (success, bad creds, sign-out) | 20 min |
 | — | Build/test/lint verification and fixing the issues found | 15 min |
 | **Total** | | **3 hours** |
-
-_Items 2.1 and 2.4 are manual Firebase console steps and aren't counted in build time._
 
 ---
 
