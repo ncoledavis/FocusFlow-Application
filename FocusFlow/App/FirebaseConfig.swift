@@ -26,5 +26,8 @@ enum FirebaseConfig {
         if FirebaseApp.app() == nil {
             FirebaseApp.configure()
         }
+        #if DEBUG
+        print("[FirebaseConfig] Firebase configured ✓ — using the live backend.")
+        #endif
     }
 }
