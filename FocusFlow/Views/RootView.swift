@@ -5,16 +5,19 @@ import SwiftUI
 struct RootView: View {
     @StateObject private var session: SessionViewModel
     private let authService: AuthService
+    private let taskRepository: TaskRepository
 
-    init(authService: AuthService) {
+    init(authService: AuthService, taskRepository: TaskRepository) {
         self.authService = authService
+        self.taskRepository = taskRepository
         _session = StateObject(wrappedValue: SessionViewModel(authService: authService))
     }
 
     var body: some View {
         Group {
-            if session.isSignedIn {
-                HomeView()
+            if let user = session.currentUser {
+                HomeView(user: user, taskRepository: taskRepository)
+                    .id(user.id)
                     .environmentObject(session)
             } else {
                 AuthView(authService: authService)
@@ -25,11 +28,14 @@ struct RootView: View {
 }
 
 #Preview("Signed out") {
-    RootView(authService: MockAuthService())
+    RootView(authService: MockAuthService(), taskRepository: MockTaskRepository())
 }
 
 #Preview("Signed in") {
-    RootView(authService: MockAuthService(
-        startingUser: AppUser(id: "preview", email: "demo@focusflow.app")
-    ))
+    RootView(
+        authService: MockAuthService(
+            startingUser: AppUser(id: "preview", email: "demo@focusflow.app")
+        ),
+        taskRepository: MockTaskRepository()
+    )
 }

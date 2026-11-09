@@ -69,14 +69,15 @@ Login: email/password in Task 2, with Google Sign-In added in Task 7 for calenda
 - Note: items 2.1, 2.3 (plist), and 2.4 require Firebase console access. Until the plist is added, the app runs against MockAuthService so the full flow is still demoable.
 
 ### Task 3: Task data layer with Firestore
-- [ ] 3.1 Design the Firestore tasks collection shape and document the fields.
-- [ ] 3.2 Define TaskRepository protocol: create, update, delete, observeTasks(forOwner:).
-- [ ] 3.3 Implement FirestoreTaskRepository create/update/delete.
-- [ ] 3.4 Add the real-time listener in observeTasks and map snapshots to TaskItem.
-- [ ] 3.5 Build TaskListViewModel that subscribes to the repository and exposes sorted tasks.
-- [ ] 3.6 Build a basic task list view (list rows + an "Add task" button with a minimal form).
-- [ ] 3.7 Create MockTaskRepository; write TaskListViewModel tests for add/update/delete and priority ordering.
+- [x] 3.1 Design the Firestore tasks collection shape and document the fields. _(schema table lives in the doc comment on `FirestoreTaskRepository`)_
+- [x] 3.2 Define TaskRepository protocol: create, update, delete, observeTasks(forOwner:).
+- [x] 3.3 Implement FirestoreTaskRepository create/update/delete.
+- [x] 3.4 Add the real-time listener in observeTasks and map snapshots to TaskItem.
+- [x] 3.5 Build TaskListViewModel that subscribes to the repository and exposes sorted tasks.
+- [x] 3.6 Build a basic task list view (list rows + an "Add task" button with a minimal form).
+- [x] 3.7 Create MockTaskRepository; write TaskListViewModel tests for add/update/delete and priority ordering.
 - Demo: logged-in user adds tasks and sees them appear instantly in a live list.
+- Note: the live demo needs a Firestore database created in the console and the rules from `firestore.rules` published (a new production-mode database denies all access). Without the plist, the app uses `MockTaskRepository`.
 
 ### Task 4: One-at-a-time focus view with time model
 - [ ] 4.1 Add current-task selection logic (highest-priority pending) to a FocusViewModel.
