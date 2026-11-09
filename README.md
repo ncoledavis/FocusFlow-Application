@@ -243,6 +243,43 @@ The interim rules let each user read and write only their own tasks (`ownerUid =
 - Firestore write calls complete when the server acknowledges them, so while offline `Add` waits until the connection returns (the local list still updates immediately). Offline handling is part of Task 9.7.
 - The add form only creates duration tasks for now; fixed time slots come in Task 4.4.
 
+### Problems encountered and how they were resolved
+
+Nothing failed to compile and no tests failed this time. These are the issues that came up and how each was handled.
+
+**8. A new Firestore database blocks every request.** Production-mode Firestore denies all reads and writes until rules are published, so the task list would fail on the first live run with an unhelpful error.
+- *Resolution:* added an interim owner-only `firestore.rules` to paste into the console, and made `TaskListViewModel` turn Firestore's permission-denied error (code 7) into a message that points at the security rules.
+
+**9. Field name mismatch with the plan's schema.** The model stores the explicit finish time as `storedTargetFinishAt` (the computed `targetFinishAt` is derived), but the plan's Firestore schema calls the field `targetFinishAt`. Saving the property name as-is would have made the stored data disagree with the plan and with the Task 6 security rules.
+- *Resolution:* added explicit `CodingKeys` on `TaskItem` so it is persisted as `targetFinishAt`, and added tests that check the persisted key and that the computed finish is never written.
+
+**10. Firestore writes wait for the server.** `setData` and `delete` only complete once the server acknowledges them, so while offline the Add button would wait even though the local list already shows the new task.
+- *Resolution:* not fixed in this task. Documented under Known limitations and left for the offline pass in Task 9.7.
+
+**11. Couldn't read the startup log during the launch check.** Capturing the app's console output from `simctl` came back empty, most likely because `print` output is buffered when piped and the app was terminated before it flushed. That means I did not see the `Firebase configured ✓` line.
+- *Resolution:* switched to checking that the app process is still running after startup and that no new crash report was written. Both passed, but the log line itself remains unconfirmed until you run it from Xcode.
+
+**12. The plist is tracked in git.** The README said `GoogleService-Info.plist` was not committed, but it is.
+- *Resolution:* removed the incorrect wording from the project structure section. The file is still tracked; untracking it is a one-line follow-up if you want it.
+
+### Effort estimate — roughly 3 hours
+
+These are estimates of equivalent hands-on time, like the earlier tasks.
+
+| Sub-task | Work | Est. time |
+| --- | --- | --- |
+| 3.1 | Design the `tasks` schema, document the fields, map `targetFinishAt` with `CodingKeys` | 20 min |
+| 3.2 | Finalize the `TaskRepository` protocol and add `TaskRepositoryError` | 10 min |
+| 3.3 | `FirestoreTaskRepository` create / update / delete | 15 min |
+| 3.4 | Real-time snapshot listener wrapped in Combine, plus document-to-`TaskItem` mapping | 25 min |
+| 3.5 | `TaskListViewModel` (subscription, sorting, add / update / delete, validation, errors) | 30 min |
+| 3.6 | `TaskListView`, `AddTaskView`, and wiring through `HomeView` / `RootView` / app entry | 35 min |
+| 3.7 | `MockTaskRepository` and 27 new tests (view model and Firestore mapping) | 30 min |
+| — | Interim security rules, build / lint / launch verification | 15 min |
+| **Total** | | **3 hours** |
+
+_Creating the Firestore database and publishing the rules are manual console steps and aren't counted in build time._
+
 ---
 
 ## Notes for the next task
