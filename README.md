@@ -26,7 +26,7 @@ The app compiles and runs without any Firebase configuration: when no `GoogleSer
 
 1. Create a Firebase project in the [console](https://console.firebase.google.com/) and register an iOS app with bundle id `com.focusflow.app`.
 2. Enable **Email/Password** sign-in under Authentication → Sign-in method.
-3. Download `GoogleService-Info.plist` and add it to `FocusFlow/Resources/` (then re-run `xcodegen generate`).
+3. Download `GoogleService-Info.plist` and add it to `FocusFlow/Resources/` (then re-run `xcodegen generate`). The file is gitignored, so each developer downloads their own copy; a fresh clone without it runs on the mock backends.
 
 Once the plist is present, `FirebaseConfig` configures Firebase at launch and the app uses `FirebaseAuthService` automatically. In DEBUG builds it logs `Firebase configured ✓` so you can confirm the plist was picked up.
 
@@ -40,7 +40,7 @@ FocusFlow/
   Models/       Enums, AppUser, TaskItem, SupporterLink, CalendarEvent
   Services/     Protocols: AuthService (+ AuthError), TaskRepository, LinkRepository, CalendarProvider
   Adapters/     FirebaseAuthService, MockAuthService, FirestoreTaskRepository, MockTaskRepository (EventKit/Google adapters — later tasks)
-  Resources/    GoogleService-Info.plist goes here
+  Resources/    GoogleService-Info.plist goes here (gitignored; download from the Firebase console)
 FocusFlowTests/ Model Codable, TaskItem time model, AuthViewModel/session, TaskListViewModel, Firestore mapping tests
 firestore.rules Interim Firestore security rules (owner-only tasks)
 project.yml     XcodeGen project spec (incl. Firebase SPM dependency)
@@ -259,8 +259,10 @@ Nothing failed to compile and no tests failed this time. These are the issues th
 **11. Couldn't read the startup log during the launch check.** Capturing the app's console output from `simctl` came back empty, most likely because `print` output is buffered when piped and the app was terminated before it flushed. That means I did not see the `Firebase configured ✓` line.
 - *Resolution:* switched to checking that the app process is still running after startup and that no new crash report was written. Both passed, but the log line itself remains unconfirmed until you run it from Xcode.
 
-**12. The plist is tracked in git.** The README said `GoogleService-Info.plist` was not committed, but it is.
-- *Resolution:* removed the incorrect wording from the project structure section. The file is still tracked; untracking it is a one-line follow-up if you want it.
+**12. The plist was tracked in git.** The README said `GoogleService-Info.plist` was not committed, but it was.
+- *Resolution:* added it to `.gitignore` and untracked it with `git rm --cached` (the local file is untouched, so the app still uses live Firebase). It remains in earlier commits' history; see the note below.
+
+  The plist holds project identifiers and a client API key rather than a password, and every shipped iOS app contains it. If you want to limit exposure anyway, restrict that API key to your bundle ID in the Google Cloud console (APIs & Services → Credentials). Rewriting git history to purge the file isn't needed for that and I haven't done it.
 
 ### Effort estimate — roughly 3 hours
 
