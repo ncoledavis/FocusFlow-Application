@@ -286,7 +286,7 @@ _Creating the Firestore database and publishing the rules are manual console ste
 
 ---
 
-## Task 4 — One-at-a-time focus view with time model (Branch 4)
+## Task 4 — One-at-a-time focus view with time model (Task-4)
 
 The result: the app opens on a Focus tab that shows one task at a time, with its priority, notes, the time given, a finish time, and a clock-style countdown that ticks every second. Done and Skip mark the task and bring up the next one. The add form now offers either a time budget or a fixed time slot. The full list moved to a second tab.
 
