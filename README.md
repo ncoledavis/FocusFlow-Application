@@ -9,6 +9,7 @@ See [PROJECT_PLAN.md](PROJECT_PLAN.md) for the full product plan, architecture, 
 - **Task 1 — Project scaffold and architecture skeleton: complete.**
 - **Task 2 — Firebase integration and authentication: code complete.** The full sign-up / sign-in / sign-out flow builds, runs, and is covered by tests. A few console steps remain on the developer side (see [Firebase setup](#firebase-setup)).
 - **Task 3 — Task data layer with Firestore: code complete.** Signed-in users get a live task list backed by Firestore (or an in-memory mock without the plist). Needs a Firestore database and the rules in `firestore.rules` for the live backend (see [Task 3](#task-3--task-data-layer-with-firestore)).
+- **Task 4 — One-at-a-time focus view with time model: code complete.** The Focus tab shows the top task with a live countdown, and Done / Skip advance to the next. The add form supports a time budget or a fixed time slot. Overdue prompts and notifications are Task 5.
 
 ## Getting started
 
@@ -35,13 +36,14 @@ Once the plist is present, `FirebaseConfig` configures Firebase at launch and th
 ```
 FocusFlow/
   App/          FocusFlowApp.swift (entry point), FirebaseConfig.swift (conditional Firebase startup)
-  Views/        RootView (session router), AuthView, HomeView, TaskListView, AddTaskView
-  ViewModels/   AuthViewModel, SessionViewModel, TaskListViewModel
+  Views/        RootView (session router), AuthView, HomeView (Focus + Tasks tabs), FocusView, FocusCardView,
+                CountdownRingView, CountdownFormatter, TaskListView, AddTaskView, ErrorBanner
+  ViewModels/   AuthViewModel, SessionViewModel, TaskListViewModel, FocusViewModel, ErrorMessage
   Models/       Enums, AppUser, TaskItem, SupporterLink, CalendarEvent
   Services/     Protocols: AuthService (+ AuthError), TaskRepository, LinkRepository, CalendarProvider
   Adapters/     FirebaseAuthService, MockAuthService, FirestoreTaskRepository, MockTaskRepository (EventKit/Google adapters — later tasks)
   Resources/    GoogleService-Info.plist goes here (gitignored; download from the Firebase console)
-FocusFlowTests/ Model Codable, TaskItem time model, AuthViewModel/session, TaskListViewModel, Firestore mapping tests
+FocusFlowTests/ Model Codable, TaskItem time model, AuthViewModel/session, TaskListViewModel, FocusViewModel, countdown formatter, Firestore mapping tests
 firestore.rules Interim Firestore security rules (owner-only tasks)
 project.yml     XcodeGen project spec (incl. Firebase SPM dependency)
 .swiftlint.yml  Lint configuration
@@ -241,7 +243,7 @@ The interim rules let each user read and write only their own tasks (`ownerUid =
 
 ### Known limitations
 - Firestore write calls complete when the server acknowledges them, so while offline `Add` waits until the connection returns (the local list still updates immediately). Offline handling is part of Task 9.7.
-- The add form only creates duration tasks for now; fixed time slots come in Task 4.4.
+- The add form only creates duration tasks for now; fixed time slots come in Task 4.4. _(Done in Task 4.)_
 
 ### Problems encountered and how they were resolved
 
@@ -284,8 +286,97 @@ _Creating the Firestore database and publishing the rules are manual console ste
 
 ---
 
+## Task 4 — One-at-a-time focus view with time model (Branch 4)
+
+The result: the app opens on a Focus tab that shows one task at a time, with its priority, notes, the time given, a finish time, and a clock-style countdown that ticks every second. Done and Skip mark the task and bring up the next one. The add form now offers either a time budget or a fixed time slot. The full list moved to a second tab.
+
+### What was built
+
+**Current-task selection and the clock (4.1)**
+- `FocusViewModel.selectCurrent(from:)` picks the task to show. A task already marked `current` wins, so a newly added urgent task doesn't pull the user away mid-task. Otherwise it's the highest-priority pending task, then manual `order`, then oldest first (the same sort as the list, via `TaskListViewModel.sorted`).
+- When a pending task becomes current, the view model saves `status = current` and, for duration tasks, `startAt = now`. Because the start time is stored, the countdown survives a relaunch and doesn't reset. Fixed slots keep their own start and finish.
+- The clock is injectable, so tests control "now".
+
+**Focus screen (4.2, 4.3)**
+- `FocusCardView` — priority, title, notes, the countdown ring, "N min given", "Finish by …", "N more tasks up next", and large Skip / Done buttons pinned to the bottom.
+- `CountdownRingView` — a ring that drains as time runs out, with `MM:SS` (or `H:MM:SS`) in the middle. When time is up it fills red, shows overtime as `+02:15`, and says "Time's up", so the state isn't conveyed by color alone. VoiceOver reads a spoken form ("12 minutes, 30 seconds remaining") instead of the ticking digits.
+- `FocusView` wraps the card in a one-second `TimelineView` and shows loading and "All caught up" states. `CountdownFormatter` does the text formatting.
+- `HomeView` is now a two-tab view: **Focus** and **Tasks**. The empty Focus state has a "Go to Tasks" button.
+
+**Hybrid schedule (4.4)**
+- `AddTaskView` has a "Time budget / Fixed time" picker. Time budget uses the minutes stepper; Fixed time shows start and finish date pickers (default: the next quarter hour, 30 minutes long) and keeps the finish after the start.
+- `TaskListViewModel.addTask` now takes a `schedule:` (`.duration(minutes:)` or `.fixed(start:finish:)`) and rejects a finish that isn't after the start. Fixed tasks store `startAt` and `targetFinishAt` and no `durationMinutes`.
+- `TaskItem.allottedInterval` gives the total time given (finish minus start when both exist, otherwise the budget). It drives the ring's progress and the "given" label, and it stays correct once "add more time" extends a finish in Task 5.
+- List rows show a fixed task's time range and an "In progress" tag on the current task.
+
+**Done and Skip (4.5, 4.6)**
+- Each marks the current task (`done` or `skipped`), then waits for the next task to be started so the next card appears already running. The buttons are disabled while a write is in flight, and a failed write keeps the current task and shows the error.
+
+**Small refactors:** a shared `ErrorBanner` view and `ErrorMessage` helper replaced the copies in the task list screen and view model.
+
+### What was tested
+
+**94 tests, all passing** (52 earlier + 42 new).
+
+**`FocusViewModelTests` (25 tests)**, against `MockTaskRepository` with an injected clock:
+- Selection: highest priority wins; ties break by `order`, then creation time; an in-progress task beats a higher-priority pending one; done and skipped tasks are ignored; other owners' tasks are ignored; a new urgent task doesn't interrupt the current one; "up next" count.
+- Starting: the pending task becomes current with `startAt` stamped; fixed slots keep their times; an in-progress task keeps its original start; only one task is started; a failed start shows the error and leaves the task pending.
+- Time math: remaining counts down and goes negative after the deadline; the progress fraction is clamped to 0...1; an unstarted task shows its full allotment; no task gives `nil`.
+- Done: marks done and advances, and the next task's clock starts at the time it becomes current; finishing the last task leaves nothing current; a failed write keeps the task; no task does nothing.
+- Skip: marks skipped and advances; a failed write surfaces the error. A later action clears an old error. Stream failures surface and stop loading.
+
+**`CountdownFormatterTests` (9)**: `MM:SS` and `H:MM:SS`, rounding up partial seconds, overtime with `+`, the exact deadline, spoken text, and allotment text.
+
+**Also added:** 5 `TaskItem.allottedInterval` tests (unstarted, started, extended, fixed, none) and 3 fixed-schedule tests in `TaskListViewModelTests`.
+
+**Verification:** `swiftlint lint` reports 0 violations, and the app launches on the simulator, stays running, and writes no crash report. I rendered the focus card to images and checked it by eye: the ring is 60% full for 15:00 left of 25 min, and the time's-up state fills red with `+02:15` and "Time's up". The text fits a 390pt-wide screen.
+
+**Not verified:** driving the screens by tapping, in the simulator or against live Firestore. That needs a signed-in session, so the Done / Skip flow is covered by the view-model tests only.
+
+### Known limitations
+- When time runs out the ring turns red and keeps counting overtime, but there is no "Add more time / Mark done / Skip" prompt and no notification yet. Both are Task 5.
+- A skipped task goes to the Finished section, and the UI has no way to bring it back.
+- A fixed-slot task is picked by priority like any other, not by the clock, so a high-priority task scheduled for tomorrow can be shown as current today.
+- Starting a task's clock is a saved write, so the focus screen should only run on the owner's device. The supporter views in Task 6 use the list, not this screen.
+
+### Problems encountered and how they were resolved
+
+No tests failed. These are the issues that came up and how each was handled.
+
+**13. `Branch-4` didn't contain Task 3.** PR #3 merged into `main` with no file changes, so Task 3's code existed only on the `Task-3` branch, and `Branch-4` started from `main` without it. Task 4 depends on `TaskListViewModel` and the repositories.
+- *Resolution:* stopped before changing anything and asked. After PR #4 put Task 3 on `main`, I fetched and fast-forwarded `Branch-4` to `origin/main` (no merge commit).
+
+**14. The fast-forward deleted the local `GoogleService-Info.plist`.** Task 3 untracked the plist, and a checkout that moves past a commit that still tracked it removes the working copy.
+- *Resolution:* restored the file from the earlier commit (`git show ae44ae4:…`) and confirmed it is still gitignored and has the right bundle ID. **If you pull this change on another machine, git will delete that machine's plist the same way, so keep a copy or re-download it from the Firebase console.**
+
+**15. The first render check showed an empty card.** `ImageRenderer` can't draw `ScrollView` contents, so the images showed only the Skip / Done bar, and the "running" and "time's up" files were byte-for-byte the same size. That was a limit of the tool, not an app bug.
+- *Resolution:* exposed the card's content separately from its scroll container and rendered that. The throwaway render test was deleted and not committed.
+
+**16. The simulator refused to launch the test host ("Busy").** A transient preflight failure after repeated runs.
+- *Resolution:* shut down and rebooted the simulator, then re-ran.
+
+**17. One lint warning in the new tests.** A helper returned a 3-member tuple.
+- *Resolution:* dropped the unused third member (the tests that need the clock create their own).
+
+### Effort Timeline roughly 3.5 hours
+
+These are estimates of equivalent hands-on time, like the earlier tasks.
+
+| Sub-task | Work | Est. time |
+| --- | --- | --- |
+| 4.1 | `FocusViewModel`: selection, starting the clock, injectable time source | 40 min |
+| 4.2 | Focus card layout, `FocusView`, and the Focus / Tasks tab view | 35 min |
+| 4.3 | Countdown ring, formatter, and the one-second timeline | 30 min |
+| 4.4 | Hybrid schedule: `addTask(schedule:)`, form changes, `allottedInterval`, list rows | 30 min |
+| 4.5 / 4.6 | Done and Skip with advance and error handling | 15 min |
+| 4.7 | 42 new tests (focus view model, formatter, `allottedInterval`, fixed schedules) | 45 min |
+| — | Branch / plist recovery, visual render check, build / lint / launch verification | 20 min |
+| **Total** | | **about 3.5 hours (215 min)** |
+
+---
+
 ## Notes for the next task
 
-Task 4 (one-at-a-time focus view) adds current-task selection to a `FocusViewModel`, the single-task card with a live countdown toward `targetFinishAt`, the hybrid duration-or-fixed-slot form, and the Done and Skip actions. It builds directly on `TaskListViewModel.sorted(_:)` and the `TaskItem` time model from Task 1. Also remember the date-precision note from Task 1 when mapping Firestore timestamps.
+Task 5 (overdue handling and notifications) builds on this screen: a `NotificationService` that schedules a local notification at `targetFinishAt`, an in-app "overdue" state when the countdown reaches zero, the "Add more time / Mark done / Skip" prompt, and "Add more time" extending `targetFinishAt` (which `allottedInterval` and the ring already handle). The "time's up" display and `TaskItem.isOverdue` are ready for it.
 
 

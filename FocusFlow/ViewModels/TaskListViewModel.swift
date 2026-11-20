@@ -65,7 +65,7 @@ final class TaskListViewModel: ObservableObject {
                 receiveCompletion: { [weak self] completion in
                     guard let self else { return }
                     if case .failure(let error) = completion {
-                        self.errorMessage = Self.message(for: error)
+                        self.errorMessage = ErrorMessage.forRepository(error)
                     }
                     self.isLoading = false
                 },
@@ -78,36 +78,56 @@ final class TaskListViewModel: ObservableObject {
 
     // MARK: - Actions
 
+    /// How a new task is scheduled (hybrid model).
+    enum NewTaskSchedule: Equatable {
+        /// A time budget. The clock starts when the task becomes current.
+        case duration(minutes: Int)
+        /// A fixed slot with an explicit start and finish.
+        case fixed(start: Date, finish: Date)
+    }
+
     /// Validates and creates a new task. Returns true on success.
     @discardableResult
     func addTask(
         title: String,
         notes: String = "",
         priority: Priority = .medium,
-        durationMinutes: Int
+        schedule: NewTaskSchedule
     ) async -> Bool {
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedTitle.isEmpty else {
             errorMessage = "Give your task a title."
             return false
         }
-        guard durationMinutes > 0 else {
-            errorMessage = "Time allotted must be at least 1 minute."
-            return false
-        }
 
-        let trimmedNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
-        let task = TaskItem(
+        var task = TaskItem(
             id: UUID().uuidString,
             ownerUid: ownerUid,
             title: trimmedTitle,
-            notes: trimmedNotes.isEmpty ? nil : trimmedNotes,
+            notes: Self.normalizedNotes(notes),
             priority: priority,
-            scheduleType: .duration,
-            durationMinutes: durationMinutes,
             createdBy: currentUid,
             order: nextOrder()
         )
+
+        switch schedule {
+        case .duration(let minutes):
+            guard minutes > 0 else {
+                errorMessage = "Time allotted must be at least 1 minute."
+                return false
+            }
+            task.scheduleType = .duration
+            task.durationMinutes = minutes
+        case .fixed(let start, let finish):
+            guard finish > start else {
+                errorMessage = "The finish time must be after the start time."
+                return false
+            }
+            task.scheduleType = .fixed
+            task.startAt = start
+            task.storedTargetFinishAt = finish
+        }
+
         return await perform { try await self.repository.create(task) }
     }
 
@@ -140,23 +160,19 @@ final class TaskListViewModel: ObservableObject {
         (allTasks.map(\.order).max() ?? -1) + 1
     }
 
+    private static func normalizedNotes(_ notes: String) -> String? {
+        let trimmed = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
     private func perform(_ work: () async throws -> Void) async -> Bool {
         errorMessage = nil
         do {
             try await work()
             return true
         } catch {
-            errorMessage = Self.message(for: error)
+            errorMessage = ErrorMessage.forRepository(error)
             return false
         }
-    }
-
-    private static func message(for error: Error) -> String {
-        let nsError = error as NSError
-        // Firestore "permission denied" (code 7).
-        if nsError.domain == "FIRFirestoreErrorDomain", nsError.code == 7 {
-            return "Permission denied. Check that your Firestore security rules allow access to your tasks."
-        }
-        return error.localizedDescription
     }
 }
