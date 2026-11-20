@@ -106,6 +106,48 @@ final class TaskItemTimeTests: XCTestCase {
         XCTAssertFalse(task.isOverdue(asOf: after))
     }
 
+    func testAllottedIntervalForUnstartedDurationTaskIsItsBudget() {
+        let task = TaskItem(
+            id: "t", ownerUid: "u", title: "Task",
+            scheduleType: .duration, durationMinutes: 30, createdBy: "u"
+        )
+        XCTAssertEqual(task.allottedInterval, 30 * 60)
+    }
+
+    func testAllottedIntervalForStartedDurationTaskMatchesItsBudget() {
+        let task = TaskItem(
+            id: "t", ownerUid: "u", title: "Task",
+            scheduleType: .duration, durationMinutes: 30, startAt: base, createdBy: "u"
+        )
+        XCTAssertEqual(task.allottedInterval, 30 * 60)
+    }
+
+    func testAllottedIntervalGrowsWhenFinishIsExtended() {
+        let task = TaskItem(
+            id: "t", ownerUid: "u", title: "Task",
+            scheduleType: .duration, durationMinutes: 30, startAt: base,
+            storedTargetFinishAt: base.addingTimeInterval(45 * 60), createdBy: "u"
+        )
+        XCTAssertEqual(task.allottedInterval, 45 * 60)
+    }
+
+    func testAllottedIntervalForFixedSlotIsTheSlotLength() {
+        let task = TaskItem(
+            id: "t", ownerUid: "u", title: "Meeting",
+            scheduleType: .fixed, startAt: base,
+            storedTargetFinishAt: base.addingTimeInterval(50 * 60), createdBy: "u"
+        )
+        XCTAssertEqual(task.allottedInterval, 50 * 60)
+    }
+
+    func testAllottedIntervalIsNilWithNoDurationOrSlot() {
+        let task = TaskItem(
+            id: "t", ownerUid: "u", title: "Task",
+            scheduleType: .duration, durationMinutes: nil, createdBy: "u"
+        )
+        XCTAssertNil(task.allottedInterval)
+    }
+
     func testPriorityComparable() {
         XCTAssertTrue(Priority.low < Priority.medium)
         XCTAssertTrue(Priority.high < Priority.urgent)

@@ -37,6 +37,25 @@ struct TaskItem: Codable, Identifiable, Equatable {
 
     var createdAt: Date
 
+    /// Persisted field names. `storedTargetFinishAt` is stored as
+    /// `targetFinishAt` to match the Firestore schema in the project plan; the
+    /// computed `targetFinishAt` property below is never persisted.
+    enum CodingKeys: String, CodingKey {
+        case id
+        case ownerUid
+        case title
+        case notes
+        case priority
+        case scheduleType
+        case durationMinutes
+        case startAt
+        case storedTargetFinishAt = "targetFinishAt"
+        case status
+        case createdBy
+        case order
+        case createdAt
+    }
+
     init(
         id: String,
         ownerUid: String,
@@ -87,6 +106,17 @@ extension TaskItem {
             return start.addingTimeInterval(TimeInterval(minutes * 60))
         }
         return nil
+    }
+
+    /// Total time given to the task, in seconds: the span from `startAt` to the
+    /// target finish when both are known (covers fixed slots and extended
+    /// tasks), otherwise the plain `durationMinutes` budget. Nil if neither is
+    /// available.
+    var allottedInterval: TimeInterval? {
+        if let start = startAt, let finish = targetFinishAt {
+            return finish.timeIntervalSince(start)
+        }
+        return durationMinutes.map { TimeInterval($0 * 60) }
     }
 
     /// Seconds remaining until the target finish, relative to `now`.
