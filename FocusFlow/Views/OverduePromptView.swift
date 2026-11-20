@@ -22,7 +22,8 @@ struct OverduePromptView: View {
         }
         .disabled(isWorking)
         .interactiveDismissDisabled()
-        .presentationDetents([.medium, .large])
+        // Tall enough that Mark done and Skip are visible without scrolling.
+        .presentationDetents([.fraction(0.75), .large])
     }
 
     private var header: some View {
@@ -44,14 +45,16 @@ struct OverduePromptView: View {
 
     private var addTimeSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Add more time")
+            Text("Add more time (minutes)")
                 .font(.subheadline.weight(.semibold))
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 84), spacing: 8)], spacing: 8) {
+            // Four options fit one row at normal text size and wrap at larger sizes.
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 72), spacing: 8)], spacing: 8) {
                 ForEach(extensionOptions, id: \.self) { minutes in
                     Button {
                         onAddTime(minutes)
                     } label: {
-                        Text("+\(minutes) min")
+                        Text("+\(minutes)")
+                            .font(.headline)
                             .frame(maxWidth: .infinity, minHeight: 44)
                     }
                     .buttonStyle(.bordered)
