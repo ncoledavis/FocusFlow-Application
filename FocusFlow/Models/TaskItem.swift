@@ -37,6 +37,25 @@ struct TaskItem: Codable, Identifiable, Equatable {
 
     var createdAt: Date
 
+    /// Persisted field names. `storedTargetFinishAt` is stored as
+    /// `targetFinishAt` to match the Firestore schema in the project plan; the
+    /// computed `targetFinishAt` property below is never persisted.
+    enum CodingKeys: String, CodingKey {
+        case id
+        case ownerUid
+        case title
+        case notes
+        case priority
+        case scheduleType
+        case durationMinutes
+        case startAt
+        case storedTargetFinishAt = "targetFinishAt"
+        case status
+        case createdBy
+        case order
+        case createdAt
+    }
+
     init(
         id: String,
         ownerUid: String,
