@@ -51,7 +51,7 @@ The project uses XcodeGen so the Xcode project is reproducible and defined in a 
 
 ---
 
-## Task 1 — Project scaffold and architecture skeleton
+## Task 1 — Project scaffold and architecture skeleton B(Branch 1)
 
 Roughly **3 hours** of work. The result: the app builds, launches to a placeholder screen on the simulator, and the full domain model + architecture skeleton is in place and tested.
 
@@ -112,7 +112,7 @@ Roughly **3 hours** of work. The result: the app builds, launches to a placehold
 **4. SwiftLint config placement warning.** SwiftLint warned that `unused_import` should live under `analyzer_rules`, not `opt_in_rules`.
 - *Resolution:* moved `unused_import` into an `analyzer_rules` section; lint now runs with zero warnings.
 
-### Effort estimate — roughly 3 hours
+### Effort Timeline 3 hours
 
 | Sub-task | Work | Est. time |
 | --- | --- | --- |
@@ -130,7 +130,7 @@ Roughly **3 hours** of work. The result: the app builds, launches to a placehold
 
 ---
 
-## Task 2 — Firebase integration and authentication
+## Task 2 — Firebase integration and authentication (Branch 2)
 
 The result: a complete email/password auth flow — sign up, sign in, sign out, a session router, and session restoration — that builds, runs, and is fully tested against a mock backend, ready to flip to live Firebase the moment the console config is dropped in.
 
@@ -176,7 +176,7 @@ The result: a complete email/password auth flow — sign up, sign in, sign out, 
 **7. Two SwiftLint warnings in the new UI code.** A long `print` line in `FirebaseConfig` exceeded the line-length limit, and the submit `Button(action:){...}` tripped the multiple-trailing-closure rule.
 - *Resolution:* split the log string across two lines and switched the button to the explicit `Button { } label: { }` form. Lint is back to zero violations.
 
-### Effort estimate — roughly 3 hours
+### Effort Timeline 3 hours
 
 | Sub-task | Work | Est. time |
 | --- | --- | --- |
@@ -193,7 +193,7 @@ The result: a complete email/password auth flow — sign up, sign in, sign out, 
 
 ---
 
-## Task 3 — Task data layer with Firestore
+## Task 3 — Task data layer with Firestore (Branch 3)
 
 The result: a signed-in user can add tasks and see them appear immediately in a live, priority-sorted list. Tasks are stored in Firestore with a real-time listener; without a plist the same UI runs against an in-memory mock.
 
@@ -264,7 +264,7 @@ Nothing failed to compile and no tests failed this time. These are the issues th
 
   The plist holds project identifiers and a client API key rather than a password, and every shipped iOS app contains it. If you want to limit exposure anyway, restrict that API key to your bundle ID in the Google Cloud console (APIs & Services → Credentials). Rewriting git history to purge the file isn't needed for that and I haven't done it.
 
-### Effort estimate — roughly 3 hours
+### Effort Timeline 3 hours
 
 These are estimates of equivalent hands-on time, like the earlier tasks.
 
@@ -288,4 +288,4 @@ _Creating the Firestore database and publishing the rules are manual console ste
 
 Task 4 (one-at-a-time focus view) adds current-task selection to a `FocusViewModel`, the single-task card with a live countdown toward `targetFinishAt`, the hybrid duration-or-fixed-slot form, and the Done and Skip actions. It builds directly on `TaskListViewModel.sorted(_:)` and the `TaskItem` time model from Task 1. Also remember the date-precision note from Task 1 when mapping Firestore timestamps.
 
-## AI was used to clean up a lot fo the documentation and keep me organized on priority and next steps
+
