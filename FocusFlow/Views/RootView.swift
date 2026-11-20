@@ -6,17 +6,19 @@ struct RootView: View {
     @StateObject private var session: SessionViewModel
     private let authService: AuthService
     private let taskRepository: TaskRepository
+    private let notificationService: NotificationService
 
-    init(authService: AuthService, taskRepository: TaskRepository) {
+    init(authService: AuthService, taskRepository: TaskRepository, notificationService: NotificationService) {
         self.authService = authService
         self.taskRepository = taskRepository
+        self.notificationService = notificationService
         _session = StateObject(wrappedValue: SessionViewModel(authService: authService))
     }
 
     var body: some View {
         Group {
             if let user = session.currentUser {
-                HomeView(user: user, taskRepository: taskRepository)
+                HomeView(user: user, taskRepository: taskRepository, notificationService: notificationService)
                     .id(user.id)
                     .environmentObject(session)
             } else {
@@ -28,7 +30,11 @@ struct RootView: View {
 }
 
 #Preview("Signed out") {
-    RootView(authService: MockAuthService(), taskRepository: MockTaskRepository())
+    RootView(
+        authService: MockAuthService(),
+        taskRepository: MockTaskRepository(),
+        notificationService: MockNotificationService()
+    )
 }
 
 #Preview("Signed in") {
@@ -36,6 +42,7 @@ struct RootView: View {
         authService: MockAuthService(
             startingUser: AppUser(id: "preview", email: "demo@focusflow.app")
         ),
-        taskRepository: MockTaskRepository()
+        taskRepository: MockTaskRepository(),
+        notificationService: MockNotificationService()
     )
 }

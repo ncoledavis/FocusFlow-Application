@@ -8,6 +8,7 @@ struct FocusCardView: View {
     let fraction: Double?
     let upNextCount: Int
     let isWorking: Bool
+    let notificationsOff: Bool
     let onDone: () -> Void
     let onSkip: () -> Void
 
@@ -26,6 +27,9 @@ struct FocusCardView: View {
                 Text(upNextCount == 1 ? "1 more task up next" : "\(upNextCount) more tasks up next")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+            }
+            if notificationsOff {
+                notificationsOffNote
             }
         }
         .padding(.horizontal, 24)
@@ -73,6 +77,21 @@ struct FocusCardView: View {
         .foregroundStyle(.secondary)
     }
 
+    /// Shown when notifications are denied: explains the fallback and links to
+    /// Settings.
+    private var notificationsOffNote: some View {
+        VStack(spacing: 4) {
+            Label("Notifications are off. You'll only be alerted while the app is open.", systemImage: "bell.slash")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
+                Link("Open Settings", destination: settingsURL)
+                    .font(.footnote.weight(.semibold))
+            }
+        }
+    }
+
     private var actionButtons: some View {
         HStack(spacing: 12) {
             Button(action: onSkip) {
@@ -116,6 +135,7 @@ struct FocusCardView: View {
         fraction: 0.6,
         upNextCount: 3,
         isWorking: false,
+        notificationsOff: true,
         onDone: {},
         onSkip: {}
     )
