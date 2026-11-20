@@ -446,7 +446,6 @@ No unit test failed. These are the issues that came up and how each was handled.
 
 ### Effort Timeline about 3 hours 40 minutes
 
-These are estimates of equivalent hands-on time, like the earlier tasks.
 
 | Sub-task | Work | Est. time |
 | --- | --- | --- |
@@ -461,6 +460,5 @@ These are estimates of equivalent hands-on time, like the earlier tasks.
 
 ---
 
-## Notes for the next task
 
 
