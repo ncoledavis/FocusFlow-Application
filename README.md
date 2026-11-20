@@ -360,7 +360,6 @@ No tests failed. These are the issues that came up and how each was handled.
 
 ### Effort Timeline roughly 3.5 hours
 
-These are estimates of equivalent hands-on time, like the earlier tasks.
 
 | Sub-task | Work | Est. time |
 | --- | --- | --- |
@@ -376,7 +375,5 @@ These are estimates of equivalent hands-on time, like the earlier tasks.
 ---
 
 ## Notes for the next task
-
-Task 5 (overdue handling and notifications) builds on this screen: a `NotificationService` that schedules a local notification at `targetFinishAt`, an in-app "overdue" state when the countdown reaches zero, the "Add more time / Mark done / Skip" prompt, and "Add more time" extending `targetFinishAt` (which `allottedInterval` and the ring already handle). The "time's up" display and `TaskItem.isOverdue` are ready for it.
 
 
