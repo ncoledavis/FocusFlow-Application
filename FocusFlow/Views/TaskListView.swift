@@ -28,7 +28,7 @@ struct TaskListView: View {
             }
             .safeAreaInset(edge: .bottom) {
                 if let message = viewModel.errorMessage {
-                    errorBanner(message)
+                    ErrorBanner(message: message, onDismiss: viewModel.clearError)
                 }
             }
             .task { viewModel.start() }
@@ -104,22 +104,6 @@ struct TaskListView: View {
         }
     }
 
-    private func errorBanner(_ message: String) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .accessibilityHidden(true)
-            Text(message)
-                .font(.footnote)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            Button("Dismiss") { viewModel.clearError() }
-                .font(.footnote.bold())
-        }
-        .foregroundStyle(.red)
-        .padding()
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
-        .padding()
-        .accessibilityIdentifier("tasks.error")
-    }
 }
 
 /// One row in the task list: title, priority, and time budget.
@@ -135,8 +119,19 @@ private struct TaskRow: View {
             HStack(spacing: 12) {
                 Label(task.priority.title, systemImage: "flag.fill")
                     .foregroundStyle(priorityColor)
-                if let minutes = task.durationMinutes {
+                if task.scheduleType == .fixed, let start = task.startAt, let finish = task.targetFinishAt {
+                    Label(
+                        "\(start.formatted(date: .abbreviated, time: .shortened)) – "
+                            + finish.formatted(date: .omitted, time: .shortened),
+                        systemImage: "calendar.clock"
+                    )
+                } else if let minutes = task.durationMinutes {
                     Label("\(minutes) min", systemImage: "clock")
+                }
+                if task.status == .current {
+                    Text("In progress")
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Color.accentColor)
                 }
                 if !task.status.isActive {
                     Text(task.status.rawValue.capitalized)

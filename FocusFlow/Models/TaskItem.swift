@@ -108,6 +108,17 @@ extension TaskItem {
         return nil
     }
 
+    /// Total time given to the task, in seconds: the span from `startAt` to the
+    /// target finish when both are known (covers fixed slots and extended
+    /// tasks), otherwise the plain `durationMinutes` budget. Nil if neither is
+    /// available.
+    var allottedInterval: TimeInterval? {
+        if let start = startAt, let finish = targetFinishAt {
+            return finish.timeIntervalSince(start)
+        }
+        return durationMinutes.map { TimeInterval($0 * 60) }
+    }
+
     /// Seconds remaining until the target finish, relative to `now`.
     /// Positive while time is left, negative once overdue, nil if no finish
     /// time can be resolved.

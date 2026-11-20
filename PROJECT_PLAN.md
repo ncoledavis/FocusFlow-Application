@@ -80,13 +80,13 @@ Login: email/password in Task 2, with Google Sign-In added in Task 7 for calenda
 - Note: the live demo needs a Firestore database created in the console and the rules from `firestore.rules` published (a new production-mode database denies all access). Without the plist, the app uses `MockTaskRepository`.
 
 ### Task 4: One-at-a-time focus view with time model
-- [ ] 4.1 Add current-task selection logic (highest-priority pending) to a FocusViewModel.
-- [ ] 4.2 Build the focus screen layout: single task card with title, notes, allotted duration.
-- [ ] 4.3 Add a clock-style countdown display toward targetFinishAt, updating every second.
-- [ ] 4.4 Extend the task-creation form to support the hybrid schedule (duration OR fixed time slot).
-- [ ] 4.5 Implement the "Done" action (mark done, advance to next).
-- [ ] 4.6 Implement the "Skip" action (mark skipped, advance to next).
-- [ ] 4.7 Write unit tests for current-task selection, time-remaining math, and advance logic.
+- [x] 4.1 Add current-task selection logic (highest-priority pending) to a FocusViewModel.
+- [x] 4.2 Build the focus screen layout: single task card with title, notes, allotted duration.
+- [x] 4.3 Add a clock-style countdown display toward targetFinishAt, updating every second.
+- [x] 4.4 Extend the task-creation form to support the hybrid schedule (duration OR fixed time slot).
+- [x] 4.5 Implement the "Done" action (mark done, advance to next).
+- [x] 4.6 Implement the "Skip" action (mark skipped, advance to next).
+- [x] 4.7 Write unit tests for current-task selection, time-remaining math, and advance logic.
 - Demo: user sees one task with its time budget and live countdown; done/skip advances to the next.
 
 ### Task 5: Overdue handling and notifications

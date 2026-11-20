@@ -108,7 +108,7 @@ final class TaskListViewModelTests: XCTestCase {
             title: "  Write report  ",
             notes: "  Section 2  ",
             priority: .high,
-            durationMinutes: 45
+            schedule: .duration(minutes: 45)
         )
 
         XCTAssertTrue(succeeded)
@@ -127,7 +127,7 @@ final class TaskListViewModelTests: XCTestCase {
     func testAddTaskWithBlankNotesStoresNil() async {
         let (viewModel, _) = makeViewModel()
 
-        await viewModel.addTask(title: "Task", notes: "   ", durationMinutes: 10)
+        await viewModel.addTask(title: "Task", notes: "   ", schedule: .duration(minutes: 10))
 
         XCTAssertNil(viewModel.allTasks.first?.notes)
     }
@@ -135,7 +135,7 @@ final class TaskListViewModelTests: XCTestCase {
     func testNewTasksGoAfterExistingOnesWithinPriority() async {
         let (viewModel, _) = makeViewModel(tasks: [makeTask("existing", order: 4)])
 
-        await viewModel.addTask(title: "Newer", priority: .medium, durationMinutes: 10)
+        await viewModel.addTask(title: "Newer", priority: .medium, schedule: .duration(minutes: 10))
 
         XCTAssertEqual(viewModel.activeTasks.last?.title, "Newer")
         XCTAssertEqual(viewModel.activeTasks.last?.order, 5)
@@ -144,7 +144,7 @@ final class TaskListViewModelTests: XCTestCase {
     func testAddTaskRejectsBlankTitle() async {
         let (viewModel, _) = makeViewModel()
 
-        let succeeded = await viewModel.addTask(title: "   ", durationMinutes: 10)
+        let succeeded = await viewModel.addTask(title: "   ", schedule: .duration(minutes: 10))
 
         XCTAssertFalse(succeeded)
         XCTAssertEqual(viewModel.errorMessage, "Give your task a title.")
@@ -154,7 +154,7 @@ final class TaskListViewModelTests: XCTestCase {
     func testAddTaskRejectsZeroDuration() async {
         let (viewModel, _) = makeViewModel()
 
-        let succeeded = await viewModel.addTask(title: "Task", durationMinutes: 0)
+        let succeeded = await viewModel.addTask(title: "Task", schedule: .duration(minutes: 0))
 
         XCTAssertFalse(succeeded)
         XCTAssertNotNil(viewModel.errorMessage)
@@ -166,7 +166,7 @@ final class TaskListViewModelTests: XCTestCase {
         let (viewModel, repo) = makeViewModel()
         repo.nextError = WriteError()
 
-        let succeeded = await viewModel.addTask(title: "Task", durationMinutes: 10)
+        let succeeded = await viewModel.addTask(title: "Task", schedule: .duration(minutes: 10))
 
         XCTAssertFalse(succeeded)
         XCTAssertEqual(viewModel.errorMessage, "write failed")
@@ -175,10 +175,10 @@ final class TaskListViewModelTests: XCTestCase {
 
     func testSuccessfulActionClearsPreviousError() async {
         let (viewModel, _) = makeViewModel()
-        await viewModel.addTask(title: "", durationMinutes: 10)
+        await viewModel.addTask(title: "", schedule: .duration(minutes: 10))
         XCTAssertNotNil(viewModel.errorMessage)
 
-        await viewModel.addTask(title: "Real task", durationMinutes: 10)
+        await viewModel.addTask(title: "Real task", schedule: .duration(minutes: 10))
 
         XCTAssertNil(viewModel.errorMessage)
     }
@@ -238,9 +238,58 @@ final class TaskListViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.errorMessage, TaskRepositoryError.notFound.errorDescription)
     }
 
+    // MARK: - Hybrid schedule (4.4)
+
+    func testAddFixedTaskStoresTheSlot() async throws {
+        let (viewModel, _) = makeViewModel()
+        let start = Date(timeIntervalSince1970: 2_000_000)
+        let finish = start.addingTimeInterval(45 * 60)
+
+        let succeeded = await viewModel.addTask(
+            title: "Dentist",
+            schedule: .fixed(start: start, finish: finish)
+        )
+
+        XCTAssertTrue(succeeded)
+        let task = try XCTUnwrap(viewModel.allTasks.first)
+        XCTAssertEqual(task.scheduleType, .fixed)
+        XCTAssertEqual(task.startAt, start)
+        XCTAssertEqual(task.targetFinishAt, finish)
+        XCTAssertNil(task.durationMinutes)
+        XCTAssertEqual(task.status, .pending)
+    }
+
+    func testAddDurationTaskLeavesTheClockUnstarted() async throws {
+        let (viewModel, _) = makeViewModel()
+
+        await viewModel.addTask(title: "Write", schedule: .duration(minutes: 20))
+
+        let task = try XCTUnwrap(viewModel.allTasks.first)
+        XCTAssertEqual(task.scheduleType, .duration)
+        XCTAssertEqual(task.durationMinutes, 20)
+        XCTAssertNil(task.startAt)
+        XCTAssertNil(task.targetFinishAt)
+    }
+
+    func testAddFixedTaskRejectsFinishNotAfterStart() async {
+        let (viewModel, _) = makeViewModel()
+        let start = Date(timeIntervalSince1970: 2_000_000)
+
+        let sameTime = await viewModel.addTask(title: "Zero length", schedule: .fixed(start: start, finish: start))
+        XCTAssertFalse(sameTime)
+        XCTAssertEqual(viewModel.errorMessage, "The finish time must be after the start time.")
+
+        let backwards = await viewModel.addTask(
+            title: "Backwards",
+            schedule: .fixed(start: start, finish: start.addingTimeInterval(-60))
+        )
+        XCTAssertFalse(backwards)
+        XCTAssertTrue(viewModel.allTasks.isEmpty)
+    }
+
     func testClearErrorResetsMessage() async {
         let (viewModel, _) = makeViewModel()
-        await viewModel.addTask(title: "", durationMinutes: 10)
+        await viewModel.addTask(title: "", schedule: .duration(minutes: 10))
         XCTAssertNotNil(viewModel.errorMessage)
 
         viewModel.clearError()
