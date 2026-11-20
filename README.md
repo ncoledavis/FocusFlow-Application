@@ -358,7 +358,7 @@ No tests failed. These are the issues that came up and how each was handled.
 **17. One lint warning in the new tests.** A helper returned a 3-member tuple.
 - *Resolution:* dropped the unused third member (the tests that need the clock create their own).
 
-### Effort Timeline roughly 3.5 hours
+### Effort Timeline 3.5 hours
 
 
 | Sub-task | Work | Est. time |
@@ -373,7 +373,5 @@ No tests failed. These are the issues that came up and how each was handled.
 | **Total** | | **about 3.5 hours (215 min)** |
 
 ---
-
-## Notes for the next task
 
 
