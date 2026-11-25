@@ -446,10 +446,10 @@ No unit test failed. These are the issues that came up and how each was handled.
 
 
 
-**19. The prompt's Skip button was cut off.** The first end-to-end run passed, but the screenshot showed the sheet at its half-height setting, with Skip below the visible area. My test had only checked that the button *existed*.
+**18. The prompt's Skip button was cut off.** The first end-to-end run passed, but the screenshot showed the sheet at its half-height setting, with Skip below the visible area. My test had only checked that the button *existed*.
 - *Resolution:* the sheet now opens at 75% height (and can expand), and the test now requires the buttons to be tappable. That check initially failed for a test-side reason: there are two "Skip" buttons (the card's, hidden behind the sheet, and the prompt's), so the test now passes if any matching button is tappable.
 
-**20. The time options wrapped unevenly.** With "+10 min" labels, "+5 min" fit on one line while "+10 / min" wrapped to two.
+**19. The time options wrapped unevenly.** With "+10 min" labels, "+5 min" fit on one line while "+10 / min" wrapped to two.
 - *Resolution:* shortened the labels to "+5", "+10", "+15", "+30", moved the unit into the heading ("Add more time (minutes)"), and kept the VoiceOver label "Add 10 minutes".
 
 ### Effort Timeline about 3 hours 40 minutes
@@ -521,16 +521,16 @@ Pending invites and active links live in new Firestore collections, so the live 
 
 ### Problems encountered and how they were resolved
 
-**21. `Task-6` was behind `main` again.** The branch sat at the Task 4 merge and didn't have Task 5, and it had no commits of its own.
+**20. `Task-6` was behind `main` again.** The branch sat at the Task 4 merge and didn't have Task 5, and it had no commits of its own.
 - *Resolution:* fast-forwarded it to `origin/main`. The plist stayed in place this time because neither commit tracks it.
 
-**22. The obvious data model leaks invites.** The plan puts pending and active links in one `links` collection. For a supporter to accept by code, any signed-in user would have to be able to query pending links, which would let anyone list every pending invite and join any list. The task rules also need to find a supporter's link by path, which a random link ID doesn't allow.
+**21. The obvious data model leaks invites.** The plan puts pending and active links in one `links` collection. For a supporter to accept by code, any signed-in user would have to be able to query pending links, which would let anyone list every pending invite and join any list. The task rules also need to find a supporter's link by path, which a random link ID doesn't allow.
 - *Resolution:* the two-collection design described above (code as the invite's document ID, deterministic link IDs), with the repository hiding the split. The rules tests in Task 7 cover the invite-listing and reuse cases.
 
-**23. A compile error in new tests.** `XCTUnwrap(await …)` isn't allowed because its argument can't be async.
+**22. A compile error in new tests.** `XCTUnwrap(await …)` isn't allowed because its argument can't be async.
 - *Resolution:* await first, then unwrap.
 
-**24. An end-to-end test step failed for a test-side reason.** Bob was inside the pushed task list, where the Sign Out button isn't shown.
+**23. An end-to-end test step failed for a test-side reason.** Bob was inside the pushed task list, where the Sign Out button isn't shown.
 - *Resolution:* the test now goes back before signing out.
 
 ### Effort Timeline 3 hours
@@ -605,16 +605,16 @@ The rules from Task 3 only allow people to touch their own tasks, so supporters 
 
 ### Problems encountered and how they were resolved
 
-**25. A full-document write could trip the "edit" rule (a risk avoided by design, not an observed failure).** The edit rule allows only `priority` and `order` to change. Re-saving a whole task from a supporter's phone could change a timestamp by a microsecond on its round trip through `Date`, and the rule would then reject the write. I did not test whether that actually happens.
+**24. A full-document write could trip the "edit" rule (a risk avoided by design, not an observed failure).** The edit rule allows only `priority` and `order` to change. Re-saving a whole task from a supporter's phone could change a timestamp by a microsecond on its round trip through `Date`, and the rule would then reject the write. I did not test whether that actually happens.
 - *Resolution:* `updateOrdering` writes just those two fields.
 
-**26. The emulator refused the rules file.** `firebase emulators:exec` rejects a rules path outside its project directory.
+**25. The emulator refused the rules file.** `firebase emulators:exec` rejects a rules path outside its project directory.
 - *Resolution:* moved `firebase.json` to the repository root, which is also where `firebase deploy` expects it.
 
-**27. One rules test was wrong, not the rules.** I expected an owner re-saving their own invite with a different permission to be refused, but changing a pending invite's permission is meant to be allowed.
+**26. One rules test was wrong, not the rules.** I expected an owner re-saving their own invite with a different permission to be refused, but changing a pending invite's permission is meant to be allowed.
 - *Resolution:* replaced it with the two cases that matter (another user taking over an existing code, and re-creating a code with other changed fields).
 
-**28. npm skipped some install scripts.** npm 11 doesn't run package install scripts by default and warned about three.
+**27. npm skipped some install scripts.** npm 11 doesn't run package install scripts by default and warned about three.
 - *Resolution:* none needed; the emulator and tests ran fine.
 
 ### Effort Timeline 3 hours
