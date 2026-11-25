@@ -11,6 +11,7 @@ See [PROJECT_PLAN.md](PROJECT_PLAN.md) for the full product plan, architecture, 
 - **Task 3 — Task data layer with Firestore: code complete.** Signed-in users get a live task list backed by Firestore (or an in-memory mock without the plist). Needs a Firestore database and the rules in `firestore.rules` for the live backend (see [Task 3](#task-3--task-data-layer-with-firestore)).
 - **Task 4 — One-at-a-time focus view with time model: code complete.** The Focus tab shows the top task with a live countdown, and Done / Skip advance to the next. The add form supports a time budget or a fixed time slot. Overdue prompts and notifications are Task 5.
 - **Task 5 — Overdue handling and notifications: code complete.** When a task's time runs out the app shows a "Still working on this?" prompt (Add more time / Mark done / Skip) and a "Time's up" notification fires if the app isn't open. Real notification delivery still needs a manual check on your device.
+- **Task 6 — Supporter linking and role-based permissions: code complete.** An owner can invite a supporter with a one-time code and choose what they may do (view / add / edit priority and order); the supporter sees and works on the owner's list within that permission. **Publish the updated `firestore.rules` before using the live backend** (see [Task 6](#task-6--supporter-linking-and-role-based-permissions-task-6)).
 
 ## Getting started
 
@@ -30,6 +31,8 @@ The app compiles and runs without any Firebase configuration: when no `GoogleSer
 2. Enable **Email/Password** sign-in under Authentication → Sign-in method.
 3. Download `GoogleService-Info.plist` and add it to `FocusFlow/Resources/` (then re-run `xcodegen generate`). The file is gitignored, so each developer downloads their own copy; a fresh clone without it runs on the mock backends.
 
+4. Create a Firestore database (Build → Firestore Database) and publish [`firestore.rules`](firestore.rules) (Rules tab → paste → Publish). Re-publish it whenever that file changes; supporter features need the Task 6 version.
+
 Once the plist is present, `FirebaseConfig` configures Firebase at launch and the app uses `FirebaseAuthService` automatically. In DEBUG builds it logs `Firebase configured ✓` so you can confirm the plist was picked up.
 
 ## Project structure
@@ -37,16 +40,21 @@ Once the plist is present, `FirebaseConfig` configures Firebase at launch and th
 ```
 FocusFlow/
   App/          FocusFlowApp.swift (entry point), FirebaseConfig.swift (conditional Firebase startup)
-  Views/        RootView (session router), AuthView, HomeView (Focus + Tasks tabs), FocusView, FocusCardView,
-                CountdownRingView, CountdownFormatter, OverduePromptView, TaskListView, AddTaskView, ErrorBanner
-  ViewModels/   AuthViewModel, SessionViewModel, TaskListViewModel, FocusViewModel, ErrorMessage
-  Models/       Enums, AppUser, TaskItem, SupporterLink, CalendarEvent
+  Views/        RootView (session router), AuthView, HomeView (Focus / Tasks / Support tabs), FocusView, FocusCardView,
+                CountdownRingView, CountdownFormatter, OverduePromptView, TaskListView, AddTaskView, ErrorBanner,
+                SupportView, InviteSupporterView, JoinWithCodeView, SupportedOwnerTasksView
+  ViewModels/   AuthViewModel, SessionViewModel, TaskListViewModel, TaskListAccess, FocusViewModel,
+                SupportLinksViewModel, ErrorMessage
+  Models/       Enums, AppUser, TaskItem, SupporterLink, InviteCode, CalendarEvent
   Services/     Protocols: AuthService (+ AuthError), TaskRepository, LinkRepository, CalendarProvider, NotificationService
   Adapters/     FirebaseAuthService, MockAuthService, FirestoreTaskRepository, MockTaskRepository,
-                UserNotificationService, MockNotificationService (EventKit/Google adapters — later tasks)
+                FirestoreLinkRepository, MockLinkRepository, UserNotificationService, MockNotificationService
+                (EventKit/Google adapters — later tasks)
   Resources/    GoogleService-Info.plist goes here (gitignored; download from the Firebase console)
-FocusFlowTests/ Model Codable, TaskItem time model, AuthViewModel/session, TaskListViewModel, FocusViewModel (incl. expiry and notifications), countdown formatter, notification service, Firestore mapping tests
-firestore.rules Interim Firestore security rules (owner-only tasks)
+FocusFlowTests/ Model Codable, TaskItem time model, AuthViewModel/session, TaskListViewModel, FocusViewModel (incl. expiry and notifications), countdown formatter, notification service, invite codes, support links, task-list access, Firestore mapping tests
+firestore.rules Firestore security rules for tasks, links and invites
+firebase.json   Points the Firebase emulator at firestore.rules
+firestore-tests/ Node tests that run the rules against the local Firestore emulator
 project.yml     XcodeGen project spec (incl. Firebase SPM dependency)
 .swiftlint.yml  Lint configuration
 ```
@@ -435,8 +443,7 @@ The result: when the current task's countdown reaches zero, a "Still working on 
 
 No unit test failed. These are the issues that came up and how each was handled.
 
-**18. `Task-5` was behind `main`.** The branch sat at the old Task 3 merge and didn't contain Task 4, which Task 5 builds on. It had no commits of its own.
-- *Resolution:* fast-forwarded it to `origin/main`. Because the plist is untracked on `main`, that fast-forward would have deleted the local `GoogleService-Info.plist` again, so I backed it up first and restored it afterwards; it's still gitignored.
+
 
 **19. The prompt's Skip button was cut off.** The first end-to-end run passed, but the screenshot showed the sheet at its half-height setting, with Skip below the visible area. My test had only checked that the button *existed*.
 - *Resolution:* the sheet now opens at 75% height (and can expand), and the test now requires the buttons to be tappable. That check initially failed for a test-side reason: there are two "Skip" buttons (the card's, hidden behind the sheet, and the prompt's), so the test now passes if any matching button is tappable.
@@ -460,5 +467,125 @@ No unit test failed. These are the issues that came up and how each was handled.
 
 ---
 
+## Task 6 — Supporter linking and role-based permissions (Task-6)
 
+The result: an owner can invite someone they trust with a one-time code and choose what that person may do. The supporter joins by entering the code and then sees the owner's task list, with only the controls their permission allows. The owner can change the permission or remove the supporter at any time, and it takes effect on the supporter's screen immediately.
 
+| Permission | Can read tasks | Can add tasks | Can change priority and order | Can edit other fields or delete |
+| --- | --- | --- | --- | --- |
+| View only | yes | no | no | no |
+| Can add tasks | yes | yes | no | no |
+| Can edit priority & order | yes | yes | yes | no |
+| Owner | yes | yes | yes | yes |
+
+### Before using it with live Firebase
+
+The rules from Task 3 only allow people to touch their own tasks, so supporters would get "permission denied". **Publish the new [`firestore.rules`](firestore.rules)** (Firebase console → Firestore Database → Rules → paste → Publish). No new indexes are needed. Without a `GoogleService-Info.plist` the app uses in-memory mocks, and the whole flow still works inside one app session: sign out, sign up as a second person, and join with the code.
+
+### How it works
+
+- **Two collections, because a pending invite and an active link need different security.**
+  - `invites/{code}` is a pending invite. The document ID *is* the random 8-character code (about 40 bits, no `0 O 1 I L`), so only someone who has the code can fetch it. The rules don't let anyone list other people's invites, so codes can't be harvested.
+  - `links/{ownerUid}_{supporterUid}` is an active link. The ID is derived from both UIDs because Firestore rules can look a document up by path but can't run queries, and the task rules need to find a supporter's link.
+  - `LinkRepository` merges both into one `SupporterLink` type (pending or active), so the view models and screens treat them uniformly. The field tables are documented on `FirestoreLinkRepository`.
+- **Accepting is one atomic batch:** create the link and delete the invite. The rules require both, require the link's permission to match the invite, and refuse the batch if the invite isn't consumed, so a code works once and the permission can't be upgraded.
+- **Supporter edits write only `priority` and `order`.** `TaskRepository.updateOrdering` is a field-level update, which is exactly what the "edit" rule allows. It also avoids overwriting a status change made at the same moment.
+- **Two layers of enforcement.** `TaskListAccess` and `TaskListViewModel` give clear messages and hide controls the person can't use. The Firestore rules are the real enforcement.
+
+### What was built
+
+**Data layer (6.1 to 6.4)**
+- `LinkRepository` protocol: `createInvite`, `acceptInvite`, `updatePermission(of:to:)`, `revoke(_:)`, `observeLinks`. It takes the link itself, so the repository knows whether it's an invite or an active link without parsing IDs. `LinkRepositoryError` covers invite not found, your own invite, already linked, and link not found.
+- `FirestoreLinkRepository`: invite creation, accept (checks the invite, refuses your own, refuses a duplicate link, then commits the batch), permission updates, revoke, and a merged real-time stream from three listeners (my invites, my supporters, people I support).
+- `MockLinkRepository` follows the same rules, so tests and the no-Firebase demo behave like the real thing.
+- `InviteCode`: secure generation, cleaning up what people type or paste (any case, with or without the hyphen), validation, and the `ABCD-EFGH` display form.
+- `SupporterLink` gained `ownerEmail` and `supporterEmail` so lists show an email instead of a UID. They are display-only copies and are never used for access decisions.
+
+**Permission enforcement in the view models (6.8)**
+- `TaskListAccess`: `.owner` or `.supporter(permission)` with `canAdd`, `canReorder` and `canModify`.
+- `TaskListViewModel` checks it before add, update, set priority, move and delete, and refuses with "You don't have permission to …". `access` can change while a list is open.
+- New: `move(_:_:)` moves a task up or down within its priority by renumbering `order` (this also resolves ties), and `setPriority` now uses the field-level update.
+
+**Screens (6.5 to 6.7)**
+- A **Support** tab (`SupportView`): "People who support me" with a "…" menu per person (change permission, remove) and a confirmation before removing; "Waiting to be accepted" for pending invites with share and cancel; "People I support" with a row per owner and "Enter an invite code".
+- `InviteSupporterView`: choose a permission, create the code, then share or copy it.
+- `JoinWithCodeView`: enter the code, with clear errors for a malformed, unknown, used or own code.
+- `SupportedOwnerTasksView` shows the owner's list through `TaskListView` with a role banner ("View only", "You can add tasks", …). Buttons and menu items the permission doesn't allow are hidden, and the view follows permission changes and removal live. Rows show "Added by a supporter".
+
+**Security rules (6.9)**: [`firestore.rules`](firestore.rules) for `tasks`, `links` and `invites`, as in the table above. A supporter can create tasks only as themselves and only as `pending`; an edit supporter can change only `priority` and `order`; only the owner can delete, change a permission, or remove a link.
+
+### What was tested
+
+**198 Swift tests, all passing** (133 earlier + 65 new):
+- `InviteCodeTests` (7): generated codes are valid and different, the alphabet leaves out confusing characters, normalizing and validation, formatting.
+- `SupportLinksViewModelTests` (22), with an owner and a supporter view model over one repository: create an invite, accept (typed lowercase or with the hyphen), malformed / unknown / own / already-used codes, one link per pair, permission changes seen by the supporter immediately, revoke and cancel, a removed supporter needing a new invite, being an owner and a supporter at once, and unrelated people seeing nothing.
+- `TaskListAccessTests` (21): the capability table; view-only can't add, reorder, edit or delete; add can add (authored by the supporter, pending) but not reorder; edit can add and change only priority (status, start time and order stay untouched) but can't edit or delete; the owner can do everything; a downgrade or upgrade on an open list applies immediately; move up and down, the ends, staying within one priority, ties, ignoring finished tasks, and failures.
+- `FirestoreLinkMappingTests` (11), `SupporterLinkTests` (4): the stored fields match what the rules require, the document ID is authoritative, pending invites map to links keyed by their code.
+
+**62 security-rule tests, all passing**, run against the local Firestore emulator (`firestore-tests/`): each permission level for reading, creating, updating and deleting; people with no link and signed-out users; link changes taking effect at once (removal, downgrade, upgrade); invite creation and cancelling; invites readable by code but not listable; accepting an invite and the many ways to cheat it (not consuming the invite, upgrading the permission, joining as someone else, accepting your own, wrong owner, wrong ID, reusing a code, no invite at all); and link reads, permission changes and removal.
+- To check these tests aren't passing for the wrong reason, I broke four security-critical rules one at a time (invite not required to be consumed, edit supporters allowed to change any field, link permission not required to match the invite, anyone allowed to list invites). Each break was caught by exactly the test written for it, and the rules were restored.
+- To run them: `cd firestore-tests && npm install && npm test`. This needs Node and Java; the first run downloads the Firestore emulator. The `PERMISSION_DENIED` lines in the output are the SDK logging denials the tests expect.
+
+**End-to-end check in the real UI (not committed).** I temporarily added a launch flag that boots the app on mock services, plus UI tests, and drove two people through it on the simulator: Alice signs up and creates an "add" invite; Bob signs up, tries a wrong code (sees the error), joins with the right one, opens Alice's list, and adds a task, which shows "Added by a supporter" and offers no Delete or Move; Alice sees the task, changes Bob to View only, and removes him; Bob's "People I support" is then empty. A second run did the same with an **edit** supporter, who gets Move up, Move down and Change priority but not Delete, moves a task and makes it Urgent, and the owner sees both changes. I viewed the screenshots. The flag, the test target and its scheme were removed afterwards.
+
+**Verification:** `swiftlint lint` reports 0 violations.
+
+**Not verified:**
+- The Swift app talking to a real Firestore project with two real accounts. The rules were tested with documents shaped like what the app writes, and the mapping tests check the app's field names, but the two have not been exercised together.
+- Sharing the code through the system share sheet (the buttons are there; the sheet itself wasn't opened).
+- Supporter flows over a real network, including live updates between two devices.
+
+### Known limitations
+- Invites don't expire. A code works until it's used or the owner cancels it. An expiry time would be a sensible hardening step.
+- Emails on links are display-only text written by each person's own app. Nothing relies on them, but someone could write a misleading one.
+- Only the owner can end a link; a supporter can't remove themselves.
+- Supporters can't change a task's status, so they can't mark tasks done.
+- Reordering renumbers several tasks with separate writes, so a network failure partway could leave two tasks tied; the next move or the creation-time tiebreak sorts it out.
+- The owner's whole-task updates (such as starting a task) and a supporter's priority change are separate writes. If they land in the same instant, the owner's write could overwrite the supporter's change.
+- The rules and `TaskItem`'s stored field names depend on each other: renaming a field means updating both.
+
+### Problems encountered and how they were resolved
+
+**21. `Task-6` was behind `main` again.** The branch sat at the Task 4 merge and didn't have Task 5, and it had no commits of its own.
+- *Resolution:* fast-forwarded it to `origin/main`. The plist stayed in place this time because neither commit tracks it.
+
+**22. The obvious data model leaks invites.** The plan puts pending and active links in one `links` collection. For a supporter to accept by code, any signed-in user would have to be able to query pending links, which would let anyone list every pending invite and join any list. The task rules also need to find a supporter's link by path, which a random link ID doesn't allow.
+- *Resolution:* the two-collection design described above (code as the invite's document ID, deterministic link IDs), with the repository hiding the split. The 62 emulator tests cover the invite-listing and reuse cases.
+
+**23. A full-document write could trip the "edit" rule (a risk avoided by design, not an observed failure).** The edit rule allows only `priority` and `order` to change. Re-saving a whole task from a supporter's phone could change a timestamp by a microsecond on its round trip through `Date`, and the rule would then reject the write. I did not test whether that actually happens.
+- *Resolution:* `updateOrdering` writes just those two fields.
+
+**24. The emulator refused the rules file.** `firebase emulators:exec` rejects a rules path outside its project directory.
+- *Resolution:* moved `firebase.json` to the repository root, which is also where `firebase deploy` expects it.
+
+**25. One rules test was wrong, not the rules.** I expected an owner re-saving their own invite with a different permission to be refused, but changing a pending invite's permission is meant to be allowed.
+- *Resolution:* replaced it with the two cases that matter (another user taking over an existing code, and re-creating a code with other changed fields).
+
+**26. A compile error in new tests.** `XCTUnwrap(await …)` isn't allowed because its argument can't be async.
+- *Resolution:* await first, then unwrap.
+
+**27. An end-to-end test step failed for a test-side reason.** Bob was inside the pushed task list, where the Sign Out button isn't shown.
+- *Resolution:* the test now goes back before signing out.
+
+**28. npm skipped some install scripts.** npm 11 doesn't run package install scripts by default and warned about three.
+- *Resolution:* none needed; the emulator and tests ran fine.
+
+### Effort Timeline about 7 hours
+
+These are estimates of equivalent hands-on time, like the earlier tasks. This task is larger because of the security rules and the emulator tests.
+
+| Sub-task | Work | Est. time |
+| --- | --- | --- |
+| 6.1 / 6.2 | Design the two-collection model, finalize `LinkRepository`, `MockLinkRepository`, link model changes | 40 min |
+| 6.3 / 6.4 | `FirestoreLinkRepository` (invite, atomic accept, merged real-time stream) and `InviteCode` | 45 min |
+| 6.5 | Support tab, owner's supporters list, invite sheet | 45 min |
+| 6.6 | Join-with-code sheet | 15 min |
+| 6.7 | Supporter's view of an owner's list (`TaskListView` changes, role banner, live permission changes) | 30 min |
+| 6.8 | `TaskListAccess`, view-model gating, move up / down, `updateOrdering` | 40 min |
+| 6.9 | `firestore.rules` for tasks, links and invites | 45 min |
+| — | Emulator setup, 62 rules tests, breaking rules to check the tests | 60 min |
+| 6.10 | 65 new Swift tests | 55 min |
+| — | End-to-end UI runs, fixes, build / lint | 40 min |
+| **Total** | | **about 7 hours (415 min)** |
+
+---

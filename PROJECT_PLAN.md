@@ -100,17 +100,18 @@ Login: email/password in Task 2, with Google Sign-In added in Task 7 for calenda
 - Note: the shortest task the add form allows is 5 minutes. To see the notification, background the app (or lock the device) before time runs out: while the app is open the in-app prompt is the alert.
 
 ### Task 6: Supporter linking and role-based permissions
-- [ ] 6.1 Design the Firestore links collection and document the fields.
-- [ ] 6.2 Define LinkRepository protocol: createInvite, acceptInvite, updatePermission, revoke, observeLinks.
-- [ ] 6.3 Implement invite generation (code or email) in FirestoreLinkRepository.
-- [ ] 6.4 Implement accept-invite flow that creates an active link.
-- [ ] 6.5 Build the owner's Supporters management UI (list, change permission, revoke).
-- [ ] 6.6 Build the invite-entry UI on the supporter side.
-- [ ] 6.7 Build the supporter-side view of the owner's task list, gated by permission.
-- [ ] 6.8 Enforce permissions in view models (view can't add; add can create; edit can modify priority/order).
-- [ ] 6.9 Write Firestore Security Rules matching each permission level.
-- [ ] 6.10 Write view model tests for invite/accept/revoke and permission gating.
+- [x] 6.1 Design the Firestore links collection and document the fields.
+- [x] 6.2 Define LinkRepository protocol: createInvite, acceptInvite, updatePermission, revoke, observeLinks.
+- [x] 6.3 Implement invite generation (code or email) in FirestoreLinkRepository.
+- [x] 6.4 Implement accept-invite flow that creates an active link.
+- [x] 6.5 Build the owner's Supporters management UI (list, change permission, revoke).
+- [x] 6.6 Build the invite-entry UI on the supporter side.
+- [x] 6.7 Build the supporter-side view of the owner's task list, gated by permission.
+- [x] 6.8 Enforce permissions in view models (view can't add; add can create; edit can modify priority/order).
+- [x] 6.9 Write Firestore Security Rules matching each permission level.
+- [x] 6.10 Write view model tests for invite/accept/revoke and permission gating.
 - Demo: a second account accepts an invite and, per role, adds tasks or edits priority live.
+- Note: pending invites live in their own `invites` collection (the invite code is the document ID) and active links in `links/{ownerUid}_{supporterUid}`; `LinkRepository` presents both as `SupporterLink`. The live backend needs the updated `firestore.rules` published; `firestore-tests/` runs them against the local emulator.
 
 ### Task 7: Calendar integration layer (mock + real adapters)
 - [ ] 7.1 Define the CalendarProvider protocol: requestAccess, fetchEvents(in:), and a shared CalendarEvent model.
