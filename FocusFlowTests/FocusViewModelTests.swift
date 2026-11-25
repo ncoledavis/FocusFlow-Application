@@ -1,4 +1,5 @@
 import XCTest
+import Combine
 @testable import FocusFlow
 
 @MainActor
@@ -49,7 +50,9 @@ final class FocusViewModelTests: XCTestCase {
         let viewModel = FocusViewModel(
             repository: repo,
             ownerUid: owner,
-            clock: { testClock.now }
+            notificationService: MockNotificationService(),
+            clock: { testClock.now },
+            ticker: Empty<Void, Never>(completeImmediately: false).eraseToAnyPublisher()
         )
         viewModel.start()
         await viewModel.promotionTask?.value

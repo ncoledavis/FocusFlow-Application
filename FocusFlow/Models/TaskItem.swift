@@ -134,4 +134,17 @@ extension TaskItem {
         }
         return remaining <= 0
     }
+
+    /// A copy of the task with its finish pushed out by `minutes`. The extra
+    /// time counts from the later of the current finish and `now`, so adding
+    /// 10 minutes to a task that ran out 2 minutes ago gives 10 minutes from
+    /// now, not 8. The new finish is stored in `storedTargetFinishAt`, which
+    /// takes precedence over the derived finish. `startAt` and
+    /// `durationMinutes` are left alone.
+    func extended(byMinutes minutes: Int, from now: Date = Date()) -> TaskItem {
+        var copy = self
+        let base = max(targetFinishAt ?? now, now)
+        copy.storedTargetFinishAt = base.addingTimeInterval(TimeInterval(minutes * 60))
+        return copy
+    }
 }

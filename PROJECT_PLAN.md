@@ -90,13 +90,14 @@ Login: email/password in Task 2, with Google Sign-In added in Task 7 for calenda
 - Demo: user sees one task with its time budget and live countdown; done/skip advances to the next.
 
 ### Task 5: Overdue handling and notifications
-- [ ] 5.1 Add a NotificationService wrapper around UNUserNotificationCenter; request permission with fallback.
-- [ ] 5.2 Schedule a local notification at the current task's targetFinishAt; cancel it on done/skip.
-- [ ] 5.3 Detect in-app expiry when the countdown reaches zero and set an "overdue" state.
-- [ ] 5.4 Build the prompt sheet: "Add more time / Mark done / Skip".
-- [ ] 5.5 Implement "Add more time" to extend targetFinishAt and reschedule the notification.
-- [ ] 5.6 Write unit tests for the overdue transition and the add-more-time extension.
+- [x] 5.1 Add a NotificationService wrapper around UNUserNotificationCenter; request permission with fallback.
+- [x] 5.2 Schedule a local notification at the current task's targetFinishAt; cancel it on done/skip.
+- [x] 5.3 Detect in-app expiry when the countdown reaches zero and set an "overdue" state.
+- [x] 5.4 Build the prompt sheet: "Add more time / Mark done / Skip".
+- [x] 5.5 Implement "Add more time" to extend targetFinishAt and reschedule the notification.
+- [x] 5.6 Write unit tests for the overdue transition and the add-more-time extension.
 - Demo: let a short task expire and see the prompt + notification; adding time resets the countdown.
+- Note: the shortest task the add form allows is 5 minutes. To see the notification, background the app (or lock the device) before time runs out: while the app is open the in-app prompt is the alert.
 
 ### Task 6: Supporter linking and role-based permissions
 - [ ] 6.1 Design the Firestore links collection and document the fields.

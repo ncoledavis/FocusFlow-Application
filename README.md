@@ -10,6 +10,7 @@ See [PROJECT_PLAN.md](PROJECT_PLAN.md) for the full product plan, architecture, 
 - **Task 2 — Firebase integration and authentication: code complete.** The full sign-up / sign-in / sign-out flow builds, runs, and is covered by tests. A few console steps remain on the developer side (see [Firebase setup](#firebase-setup)).
 - **Task 3 — Task data layer with Firestore: code complete.** Signed-in users get a live task list backed by Firestore (or an in-memory mock without the plist). Needs a Firestore database and the rules in `firestore.rules` for the live backend (see [Task 3](#task-3--task-data-layer-with-firestore)).
 - **Task 4 — One-at-a-time focus view with time model: code complete.** The Focus tab shows the top task with a live countdown, and Done / Skip advance to the next. The add form supports a time budget or a fixed time slot. Overdue prompts and notifications are Task 5.
+- **Task 5 — Overdue handling and notifications: code complete.** When a task's time runs out the app shows a "Still working on this?" prompt (Add more time / Mark done / Skip) and a "Time's up" notification fires if the app isn't open. Real notification delivery still needs a manual check on your device.
 
 ## Getting started
 
@@ -37,13 +38,14 @@ Once the plist is present, `FirebaseConfig` configures Firebase at launch and th
 FocusFlow/
   App/          FocusFlowApp.swift (entry point), FirebaseConfig.swift (conditional Firebase startup)
   Views/        RootView (session router), AuthView, HomeView (Focus + Tasks tabs), FocusView, FocusCardView,
-                CountdownRingView, CountdownFormatter, TaskListView, AddTaskView, ErrorBanner
+                CountdownRingView, CountdownFormatter, OverduePromptView, TaskListView, AddTaskView, ErrorBanner
   ViewModels/   AuthViewModel, SessionViewModel, TaskListViewModel, FocusViewModel, ErrorMessage
   Models/       Enums, AppUser, TaskItem, SupporterLink, CalendarEvent
-  Services/     Protocols: AuthService (+ AuthError), TaskRepository, LinkRepository, CalendarProvider
-  Adapters/     FirebaseAuthService, MockAuthService, FirestoreTaskRepository, MockTaskRepository (EventKit/Google adapters — later tasks)
+  Services/     Protocols: AuthService (+ AuthError), TaskRepository, LinkRepository, CalendarProvider, NotificationService
+  Adapters/     FirebaseAuthService, MockAuthService, FirestoreTaskRepository, MockTaskRepository,
+                UserNotificationService, MockNotificationService (EventKit/Google adapters — later tasks)
   Resources/    GoogleService-Info.plist goes here (gitignored; download from the Firebase console)
-FocusFlowTests/ Model Codable, TaskItem time model, AuthViewModel/session, TaskListViewModel, FocusViewModel, countdown formatter, Firestore mapping tests
+FocusFlowTests/ Model Codable, TaskItem time model, AuthViewModel/session, TaskListViewModel, FocusViewModel (incl. expiry and notifications), countdown formatter, notification service, Firestore mapping tests
 firestore.rules Interim Firestore security rules (owner-only tasks)
 project.yml     XcodeGen project spec (incl. Firebase SPM dependency)
 .swiftlint.yml  Lint configuration
@@ -374,6 +376,89 @@ No tests failed. These are the issues that came up and how each was handled.
 
 ---
 
-## Notes for the next task
+## Task 5 — Overdue handling and notifications (Task-5)
+
+The result: when the current task's countdown reaches zero, a "Still working on this?" sheet appears with **Add more time**, **Mark done** and **Skip**. If the app isn't open, a "Time's up" notification fires at the finish time instead. Adding time pushes the finish out, resets the countdown and reschedules the notification.
+
+### What was built
+
+**Notifications (5.1, 5.2)**
+- `NotificationService` protocol (`requestPermissionIfNeeded`, `scheduleExpiry`, `cancelExpiry`), with `UserNotificationService` (wraps `UNUserNotificationCenter`) and `MockNotificationService` for tests. Scheduling and cancelling are synchronous so a cancel can't overtake an earlier schedule.
+- Permission is requested once, when the Focus screen starts, and re-checked whenever the app returns to the foreground, so turning notifications on in Settings is picked up. **Fallback:** if notifications are denied, the focus card shows "Notifications are off. You'll only be alerted while the app is open." with an Open Settings link, and the in-app prompt still works.
+- `FocusViewModel` keeps exactly one notification in step with the running task: scheduled at its finish time when the clock starts, rescheduled when the finish changes, and cancelled when the task is marked done or skipped, when the current task changes, or when the finish has already passed. It only reschedules when the task or finish actually changes, not on every list update.
+- One notification identifier per task (`task-expiry-<id>`), so rescheduling replaces the old request. Cancelling also clears a delivered notification from Notification Center.
+
+**Detecting that time ran out (5.3)**
+- `FocusViewModel.isOverdue` is set when the current task's remaining time reaches zero. It's checked on a one-second ticker owned by the view model (injectable for tests) and on every list update, so a task that expired while the app was closed is flagged as soon as it loads. Because the view model owns the ticker, it works from either tab.
+
+**The prompt (5.4)**
+- `OverduePromptView` — "Time's up", the task title, "Still working on this?", four "Add more time" options (+5, +10, +15, +30 minutes), **Mark done** and **Skip**. The three choices cover every case, so the sheet can't be swiped away.
+- `HomeView` now owns the focus view model and presents the sheet, so it appears over the Focus or Tasks tab (and switches to Focus). `FocusView` receives the view model; `RootView` and `FocusFlowApp` pass the notification service down.
+
+**Add more time (5.5)**
+- `TaskItem.extended(byMinutes:from:)` counts the extra time from the later of the current finish and now, so adding 10 minutes to a task that ran out 2 minutes ago gives 10 minutes from now, not 8. The new finish is saved as the stored finish; `startAt` and `durationMinutes` are untouched.
+- `FocusViewModel.addMoreTime(minutes:)` saves it. The repository re-emits the list, which clears `isOverdue` and reschedules the notification.
+
+### What was tested
+
+**133 tests, all passing** (94 earlier + 39 new).
+
+**`FocusViewModelExpiryTests` (28 tests)**, with an injected clock, a hand-driven ticker and `MockNotificationService`:
+- Overdue transition: not overdue while time remains; overdue at exactly zero (one second left is not); stays overdue; never overdue with no task; a task already past its finish is flagged on load without a tick; Done clears it; Skip moves to a task that isn't overdue.
+- Add more time: counts from now when overdue (10 minutes from now, not 8); extends the existing finish when there is time left; keeps the task running with its original `startAt` and budget; can expire again after being extended; rejects zero or negative minutes; a failed write keeps the prompt and shows the error; no current task does nothing.
+- Permission: asked once on start; denied is exposed for the fallback note; a change made in Settings is picked up on refresh; the prompt still works when denied.
+- Notifications: scheduled at the finish when the task starts; not rescheduled on unrelated list changes; rescheduled after add more time; cancelled on Done and on Skip; the next task's notification is scheduled when it starts; none for a finish in the past or for an empty list; a failed Done keeps the notification.
+
+**`UserNotificationServiceTests` (4)**: the request fires at the finish time with a non-repeating trigger, uses one identifier per task, names the task in the body, and isn't built for a finish that isn't in the future.
+
+**`TaskItemTimeTests` (+7)**: extending before the finish, after it, at exactly the finish, with no finish yet, twice in a row, changing only the finish, and the effect on `isOverdue` and `allottedInterval`.
+
+**End-to-end check (not committed).** I temporarily added a launch flag that signs in a demo user with mock services and a task that expires in 6 seconds, plus a UI test, and ran them on the simulator: the focus card showed, the prompt appeared when time ran out, swiping down did not dismiss it, tapping +10 dismissed it and the ring read "9 minutes, 57 seconds remaining", and Done advanced to the next task with a fresh 09:59 countdown. I viewed the screenshots. The flag, the UI test target and its scheme were then removed; the demo steps below reproduce it by hand.
+
+**Verification:** `swiftlint lint` reports 0 violations.
+
+**Not verified:**
+- Real notification delivery. The end-to-end run used the mock notification service, so the system permission dialog and an actual banner at the finish time were not exercised. Only the request that `UserNotificationService` builds is tested.
+- Add more time against live Firestore (it's covered by the mock repository and the same write path as Done and Skip).
+- The prompt while another sheet (such as Add Task) is open. SwiftUI should show it once that sheet closes, but I didn't check.
+- The "Notifications are off" note on a device with notifications denied.
+
+**To try it by hand:** add a task with the minimum 5 minutes, then either leave the app open to see the prompt, or lock the device / go to the Home Screen to see the notification. The first launch asks for notification permission.
+
+### Known limitations
+- A notification isn't shown while the app is in the foreground; the prompt is the alert.
+- The notification is scheduled when the app runs. If a task's clock starts or changes on another device, this device gets no notification until the app is opened.
+- After adding time, the ring shows the share of the *total* time given (original plus extra), so it restarts below full. For example, a 10-minute task that ran 2 minutes over and got +10 shows "22 min given" and about 45% full. The digits always show the real time left.
+- The shortest task the add form allows is 5 minutes, so seeing a real expiry takes at least that long.
+
+### Problems encountered and how they were resolved
+
+No unit test failed. These are the issues that came up and how each was handled.
+
+**18. `Task-5` was behind `main`.** The branch sat at the old Task 3 merge and didn't contain Task 4, which Task 5 builds on. It had no commits of its own.
+- *Resolution:* fast-forwarded it to `origin/main`. Because the plist is untracked on `main`, that fast-forward would have deleted the local `GoogleService-Info.plist` again, so I backed it up first and restored it afterwards; it's still gitignored.
+
+**19. The prompt's Skip button was cut off.** The first end-to-end run passed, but the screenshot showed the sheet at its half-height setting, with Skip below the visible area. My test had only checked that the button *existed*.
+- *Resolution:* the sheet now opens at 75% height (and can expand), and the test now requires the buttons to be tappable. That check initially failed for a test-side reason: there are two "Skip" buttons (the card's, hidden behind the sheet, and the prompt's), so the test now passes if any matching button is tappable.
+
+**20. The time options wrapped unevenly.** With "+10 min" labels, "+5 min" fit on one line while "+10 / min" wrapped to two.
+- *Resolution:* shortened the labels to "+5", "+10", "+15", "+30", moved the unit into the heading ("Add more time (minutes)"), and kept the VoiceOver label "Add 10 minutes".
+
+### Effort Timeline about 3 hours 40 minutes
+
+
+| Sub-task | Work | Est. time |
+| --- | --- | --- |
+| 5.1 | `NotificationService`, `UserNotificationService`, mock, permission request and the notifications-off note | 35 min |
+| 5.2 | Notification lifecycle in `FocusViewModel` (schedule, reschedule, cancel) | 25 min |
+| 5.3 | Expiry detection: injectable ticker and `isOverdue` | 25 min |
+| 5.4 | `OverduePromptView`, moving the view model up to `HomeView`, wiring through `RootView` and the app | 40 min |
+| 5.5 | `addMoreTime` and `TaskItem.extended` | 20 min |
+| 5.6 | 39 new tests | 45 min |
+| — | Branch sync and plist backup, end-to-end UI check, layout fixes, build / lint | 30 min |
+| **Total** | | **about 3 hours 40 minutes (220 min)** |
+
+---
+
 
 

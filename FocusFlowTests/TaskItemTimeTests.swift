@@ -148,6 +148,80 @@ final class TaskItemTimeTests: XCTestCase {
         XCTAssertNil(task.allottedInterval)
     }
 
+    // MARK: - Extending the finish (Task 5)
+
+    private func runningTask(minutes: Int = 10) -> TaskItem {
+        TaskItem(
+            id: "t", ownerUid: "u", title: "Task",
+            scheduleType: .duration, durationMinutes: minutes,
+            startAt: base, status: .current, createdBy: "u"
+        )
+    }
+
+    func testExtendingBeforeTheFinishAddsToTheExistingFinish() {
+        let extended = runningTask().extended(byMinutes: 5, from: base.addingTimeInterval(4 * 60))
+
+        XCTAssertEqual(extended.targetFinishAt, base.addingTimeInterval(15 * 60))
+    }
+
+    func testExtendingAfterTheFinishCountsFromNow() {
+        let now = base.addingTimeInterval(12 * 60)
+
+        let extended = runningTask().extended(byMinutes: 10, from: now)
+
+        XCTAssertEqual(extended.targetFinishAt, now.addingTimeInterval(10 * 60))
+    }
+
+    func testExtendingAtExactlyTheFinishCountsFromThen() {
+        let now = base.addingTimeInterval(10 * 60)
+
+        let extended = runningTask().extended(byMinutes: 5, from: now)
+
+        XCTAssertEqual(extended.targetFinishAt, base.addingTimeInterval(15 * 60))
+    }
+
+    func testExtendingATaskWithNoFinishYetCountsFromNow() {
+        let unstarted = TaskItem(
+            id: "t", ownerUid: "u", title: "Task",
+            scheduleType: .duration, durationMinutes: 10, createdBy: "u"
+        )
+
+        let extended = unstarted.extended(byMinutes: 5, from: base)
+
+        XCTAssertEqual(extended.targetFinishAt, base.addingTimeInterval(5 * 60))
+    }
+
+    func testExtendingTwiceStacks() {
+        let once = runningTask().extended(byMinutes: 5, from: base.addingTimeInterval(11 * 60))
+        let twice = once.extended(byMinutes: 5, from: base.addingTimeInterval(12 * 60))
+
+        XCTAssertEqual(once.targetFinishAt, base.addingTimeInterval(16 * 60))
+        XCTAssertEqual(twice.targetFinishAt, base.addingTimeInterval(21 * 60))
+    }
+
+    func testExtendingChangesOnlyTheFinish() {
+        let original = runningTask()
+
+        let extended = original.extended(byMinutes: 5, from: base.addingTimeInterval(11 * 60))
+
+        var expected = original
+        expected.storedTargetFinishAt = extended.storedTargetFinishAt
+        XCTAssertEqual(extended, expected)
+        XCTAssertEqual(extended.startAt, original.startAt)
+        XCTAssertEqual(extended.durationMinutes, original.durationMinutes)
+    }
+
+    func testExtendedTaskIsNoLongerOverdueAndGrowsItsAllotment() {
+        let now = base.addingTimeInterval(12 * 60)
+        let original = runningTask()
+        XCTAssertTrue(original.isOverdue(asOf: now))
+
+        let extended = original.extended(byMinutes: 10, from: now)
+
+        XCTAssertFalse(extended.isOverdue(asOf: now))
+        XCTAssertEqual(extended.allottedInterval, 22 * 60, "Original 10 minutes plus 2 over plus 10 added")
+    }
+
     func testPriorityComparable() {
         XCTAssertTrue(Priority.low < Priority.medium)
         XCTAssertTrue(Priority.high < Priority.urgent)
