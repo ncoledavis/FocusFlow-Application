@@ -37,7 +37,7 @@ Permission enforcement happens in the app and in Firestore Security Rules (view 
 
 Task selection: current task = highest priority among pending, with manual skip/reorder. Overdue handling via local notifications + an in-app prompt sheet.
 
-Login: email/password in Task 2, with Google Sign-In added in Task 7 for calendar access.
+Login: email/password in Task 2, with Google Sign-In added in Task 8 for calendar access.
 
 ## Task Breakdown
 
@@ -99,49 +99,55 @@ Login: email/password in Task 2, with Google Sign-In added in Task 7 for calenda
 - Demo: let a short task expire and see the prompt + notification; adding time resets the countdown.
 - Note: the shortest task the add form allows is 5 minutes. To see the notification, background the app (or lock the device) before time runs out: while the app is open the in-app prompt is the alert.
 
-### Task 6: Supporter linking and role-based permissions
+### Task 6: Supporter linking
 - [x] 6.1 Design the Firestore links collection and document the fields.
 - [x] 6.2 Define LinkRepository protocol: createInvite, acceptInvite, updatePermission, revoke, observeLinks.
 - [x] 6.3 Implement invite generation (code or email) in FirestoreLinkRepository.
 - [x] 6.4 Implement accept-invite flow that creates an active link.
 - [x] 6.5 Build the owner's Supporters management UI (list, change permission, revoke).
 - [x] 6.6 Build the invite-entry UI on the supporter side.
-- [x] 6.7 Build the supporter-side view of the owner's task list, gated by permission.
-- [x] 6.8 Enforce permissions in view models (view can't add; add can create; edit can modify priority/order).
-- [x] 6.9 Write Firestore Security Rules matching each permission level.
-- [x] 6.10 Write view model tests for invite/accept/revoke and permission gating.
-- Demo: a second account accepts an invite and, per role, adds tasks or edits priority live.
-- Note: pending invites live in their own `invites` collection (the invite code is the document ID) and active links in `links/{ownerUid}_{supporterUid}`; `LinkRepository` presents both as `SupporterLink`. The live backend needs the updated `firestore.rules` published; `firestore-tests/` runs them against the local emulator.
+- [x] 6.7 Write view model tests for invite/accept/revoke.
+- Demo: the owner creates an invite; a second account enters the code and joins; both see the link, and the owner can change the permission or remove the supporter.
+- Note: pending invites live in their own `invites` collection (the invite code is the document ID) and active links in `links/{ownerUid}_{supporterUid}`; `LinkRepository` presents both as `SupporterLink`. Using the live backend needs the `firestore.rules` from Task 7 published.
+- Estimated effort: about 3 hours.
 
-### Task 7: Calendar integration layer (mock + real adapters)
-- [ ] 7.1 Define the CalendarProvider protocol: requestAccess, fetchEvents(in:), and a shared CalendarEvent model.
-- [ ] 7.2 Implement MockCalendarProvider with sample events for the demo.
-- [ ] 7.3 Build a CalendarService that aggregates providers behind one interface with a selectable active provider.
-- [ ] 7.4 Add Info.plist NSCalendarsFullAccessUsageDescription.
-- [ ] 7.5 Implement EventKitCalendarProvider (iOS 17 full-access read, map EKEvent to CalendarEvent).
-- [ ] 7.6 Set up the Google OAuth client + consent screen; add GoogleSignIn via SPM.
-- [ ] 7.7 Implement GoogleCalendarProvider (sign-in + Calendar readonly API, map to CalendarEvent).
-- [ ] 7.8 Build a basic calendar screen that lists events from the active (mock) provider.
-- [ ] 7.9 Write CalendarService tests against the mock for merge/sort; structure adapters for integration testing.
+### Task 7: Role-based permissions
+- [x] 7.1 Build the supporter-side view of the owner's task list, gated by permission.
+- [x] 7.2 Enforce permissions in view models (view can't add; add can create; edit can modify priority/order).
+- [x] 7.3 Write Firestore Security Rules matching each permission level.
+- [x] 7.4 Write view model tests for permission gating.
+- Demo: a second account, per role, adds tasks or edits priority live; a view-only supporter can't; changing the permission or removing the supporter takes effect immediately.
+- Note: the updated `firestore.rules` must be published for the live backend. `firestore-tests/` runs the rules against the local Firestore emulator (`cd firestore-tests && npm install && npm test`).
+- Estimated effort: about 3 hours.
+### Task 8: Calendar integration layer (mock + real adapters)
+- [ ] 8.1 Define the CalendarProvider protocol: requestAccess, fetchEvents(in:), and a shared CalendarEvent model.
+- [ ] 8.2 Implement MockCalendarProvider with sample events for the demo.
+- [ ] 8.3 Build a CalendarService that aggregates providers behind one interface with a selectable active provider.
+- [ ] 8.4 Add Info.plist NSCalendarsFullAccessUsageDescription.
+- [ ] 8.5 Implement EventKitCalendarProvider (iOS 17 full-access read, map EKEvent to CalendarEvent).
+- [ ] 8.6 Set up the Google OAuth client + consent screen; add GoogleSignIn via SPM.
+- [ ] 8.7 Implement GoogleCalendarProvider (sign-in + Calendar readonly API, map to CalendarEvent).
+- [ ] 8.8 Build a basic calendar screen that lists events from the active (mock) provider.
+- [ ] 8.9 Write CalendarService tests against the mock for merge/sort; structure adapters for integration testing.
 - Demo: calendar screen shows mock events; flipping the provider flag pulls real Apple events on a device.
 
-### Task 8: Calendar-aware task view and polish
-- [ ] 8.1 Build a day/timeline view model that merges calendar events with fixed-time tasks into one sorted list.
-- [ ] 8.2 Build the timeline UI showing events and scheduled tasks together.
-- [ ] 8.3 Apply ADHD-friendly styling: clear hierarchy, large tap targets, low-distraction palette.
-- [ ] 8.4 Add empty states for each screen (no tasks, no events, no supporters).
-- [ ] 8.5 Add loading and error states across screens.
-- [ ] 8.6 Write view model tests for the merged timeline sorting.
+### Task 9: Calendar-aware task view and polish
+- [ ] 9.1 Build a day/timeline view model that merges calendar events with fixed-time tasks into one sorted list.
+- [ ] 9.2 Build the timeline UI showing events and scheduled tasks together.
+- [ ] 9.3 Apply ADHD-friendly styling: clear hierarchy, large tap targets, low-distraction palette.
+- [ ] 9.4 Add empty states for each screen (no tasks, no events, no supporters).
+- [ ] 9.5 Add loading and error states across screens.
+- [ ] 9.6 Write view model tests for the merged timeline sorting.
 - Demo: user sees a unified day view of tasks and calendar events; app feels cohesive.
 
-### Task 9: End-to-end wiring, settings, and hardening
-- [ ] 9.1 Build the Settings screen shell with navigation.
-- [ ] 9.2 Add profile display/edit and a notifications toggle.
-- [ ] 9.3 Add calendar provider selection in settings.
-- [ ] 9.4 Add sign-out and delete-account actions.
-- [ ] 9.5 Verify the full two-account flow end to end (owner + supporter).
-- [ ] 9.6 Confirm Firestore Security Rules are enforced for each permission level.
-- [ ] 9.7 Handle remaining offline/empty/error edge cases.
-- [ ] 9.8 Add the app icon and launch screen.
-- [ ] 9.9 Run the full test suite and fix any failures.
+### Task 10: End-to-end wiring, settings, and hardening
+- [ ] 10.1 Build the Settings screen shell with navigation.
+- [ ] 10.2 Add profile display/edit and a notifications toggle.
+- [ ] 10.3 Add calendar provider selection in settings.
+- [ ] 10.4 Add sign-out and delete-account actions.
+- [ ] 10.5 Verify the full two-account flow end to end (owner + supporter).
+- [ ] 10.6 Confirm Firestore Security Rules are enforced for each permission level.
+- [ ] 10.7 Handle remaining offline/empty/error edge cases.
+- [ ] 10.8 Add the app icon and launch screen.
+- [ ] 10.9 Run the full test suite and fix any failures.
 - Demo: complete walkthrough — sign up, link a supporter, supporter adds a prioritized task, user focuses with a live countdown, task expires and is extended, calendar context displays — all working together.
