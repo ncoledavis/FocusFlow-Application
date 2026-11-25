@@ -6,11 +6,18 @@ struct RootView: View {
     @StateObject private var session: SessionViewModel
     private let authService: AuthService
     private let taskRepository: TaskRepository
+    private let linkRepository: LinkRepository
     private let notificationService: NotificationService
 
-    init(authService: AuthService, taskRepository: TaskRepository, notificationService: NotificationService) {
+    init(
+        authService: AuthService,
+        taskRepository: TaskRepository,
+        linkRepository: LinkRepository,
+        notificationService: NotificationService
+    ) {
         self.authService = authService
         self.taskRepository = taskRepository
+        self.linkRepository = linkRepository
         self.notificationService = notificationService
         _session = StateObject(wrappedValue: SessionViewModel(authService: authService))
     }
@@ -18,8 +25,13 @@ struct RootView: View {
     var body: some View {
         Group {
             if let user = session.currentUser {
-                HomeView(user: user, taskRepository: taskRepository, notificationService: notificationService)
-                    .id(user.id)
+                HomeView(
+                    user: user,
+                    taskRepository: taskRepository,
+                    linkRepository: linkRepository,
+                    notificationService: notificationService
+                )
+                .id(user.id)
                     .environmentObject(session)
             } else {
                 AuthView(authService: authService)
@@ -33,6 +45,7 @@ struct RootView: View {
     RootView(
         authService: MockAuthService(),
         taskRepository: MockTaskRepository(),
+        linkRepository: MockLinkRepository(),
         notificationService: MockNotificationService()
     )
 }
@@ -43,6 +56,7 @@ struct RootView: View {
             startingUser: AppUser(id: "preview", email: "demo@focusflow.app")
         ),
         taskRepository: MockTaskRepository(),
+        linkRepository: MockLinkRepository(),
         notificationService: MockNotificationService()
     )
 }

@@ -5,6 +5,7 @@ struct FocusFlowApp: App {
 
     private let authService: AuthService
     private let taskRepository: TaskRepository
+    private let linkRepository: LinkRepository
     private let notificationService: NotificationService
 
     init() {
@@ -15,9 +16,11 @@ struct FocusFlowApp: App {
         if FirebaseConfig.isConfigured {
             authService = FirebaseAuthService()
             taskRepository = FirestoreTaskRepository()
+            linkRepository = FirestoreLinkRepository()
         } else {
             authService = MockAuthService()
             taskRepository = MockTaskRepository()
+            linkRepository = MockLinkRepository()
         }
         // Local notifications don't depend on Firebase.
         notificationService = UserNotificationService()
@@ -28,6 +31,7 @@ struct FocusFlowApp: App {
             RootView(
                 authService: authService,
                 taskRepository: taskRepository,
+                linkRepository: linkRepository,
                 notificationService: notificationService
             )
         }

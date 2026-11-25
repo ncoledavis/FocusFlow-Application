@@ -24,6 +24,11 @@ protocol TaskRepository {
 
     func delete(taskId: String) async throws
 
+    /// Changes only `priority` and `order`, leaving every other field alone.
+    /// This is the one change a supporter with "edit" permission may make, and
+    /// it avoids overwriting a status change made at the same moment.
+    func updateOrdering(taskId: String, priority: Priority, order: Int) async throws
+
     /// Real-time stream of the owner's tasks, in no guaranteed order.
     /// Emits the full list on every change. Callers sort for display, and
     /// values must be delivered on the main queue.

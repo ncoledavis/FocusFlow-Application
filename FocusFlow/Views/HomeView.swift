@@ -1,23 +1,31 @@
 import SwiftUI
 
-/// Signed-in home: a Focus tab (one task at a time) and a Tasks tab (the full
-/// list and add form). Owns the focus view model so it keeps running, and can
-/// present the "time's up" prompt, whichever tab is showing.
+/// Signed-in home: a Focus tab (one task at a time), a Tasks tab (the full list
+/// and add form), and a Support tab (supporter links). Owns the focus and link
+/// view models so they keep running, and can present the "time's up" prompt,
+/// whichever tab is showing.
 struct HomeView: View {
     private enum Tab {
         case focus
         case tasks
+        case support
     }
 
     @EnvironmentObject private var session: SessionViewModel
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var focusViewModel: FocusViewModel
+    @StateObject private var linksViewModel: SupportLinksViewModel
     @State private var selection: Tab = .focus
 
     let user: AppUser
     let taskRepository: TaskRepository
 
-    init(user: AppUser, taskRepository: TaskRepository, notificationService: NotificationService) {
+    init(
+        user: AppUser,
+        taskRepository: TaskRepository,
+        linkRepository: LinkRepository,
+        notificationService: NotificationService
+    ) {
         self.user = user
         self.taskRepository = taskRepository
         _focusViewModel = StateObject(
@@ -26,6 +34,9 @@ struct HomeView: View {
                 ownerUid: user.id,
                 notificationService: notificationService
             )
+        )
+        _linksViewModel = StateObject(
+            wrappedValue: SupportLinksViewModel(repository: linkRepository, user: user)
         )
     }
 
@@ -44,8 +55,18 @@ struct HomeView: View {
             }
             .tabItem { Label("Tasks", systemImage: "list.bullet") }
             .tag(Tab.tasks)
+
+            NavigationStack {
+                SupportView(viewModel: linksViewModel, taskRepository: taskRepository)
+                    .toolbar { signOutToolbar }
+            }
+            .tabItem { Label("Support", systemImage: "person.2") }
+            .tag(Tab.support)
         }
-        .task { focusViewModel.start() }
+        .task {
+            focusViewModel.start()
+            linksViewModel.start()
+        }
         .onChange(of: scenePhase) { _, phase in
             // Picks up notifications being turned on or off in Settings.
             if phase == .active { focusViewModel.refreshNotificationPermission() }
@@ -91,6 +112,7 @@ struct HomeView: View {
     return HomeView(
         user: user,
         taskRepository: MockTaskRepository(),
+        linkRepository: MockLinkRepository(),
         notificationService: MockNotificationService()
     )
     .environmentObject(SessionViewModel(authService: MockAuthService(startingUser: user)))

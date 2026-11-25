@@ -87,6 +87,24 @@ enum LinkPermission: String, Codable, CaseIterable, Comparable, Identifiable {
     static func < (lhs: LinkPermission, rhs: LinkPermission) -> Bool {
         lhs.level < rhs.level
     }
+
+    /// Human-facing label.
+    var title: String {
+        switch self {
+        case .view: return "View only"
+        case .add: return "Can add tasks"
+        case .edit: return "Can edit priority & order"
+        }
+    }
+
+    /// One-line explanation of what the permission allows.
+    var summary: String {
+        switch self {
+        case .view: return "Can see your tasks but not change them."
+        case .add: return "Can see your tasks and add new ones."
+        case .edit: return "Can see and add tasks, and change their priority and order."
+        }
+    }
 }
 
 /// Lifecycle state of a supporter link.

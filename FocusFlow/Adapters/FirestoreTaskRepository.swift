@@ -57,6 +57,15 @@ final class FirestoreTaskRepository: TaskRepository {
         try await collection.document(taskId).delete()
     }
 
+    func updateOrdering(taskId: String, priority: Priority, order: Int) async throws {
+        // Field-level update: only these two keys change, which is exactly what
+        // the security rules allow a supporter with "edit" permission to do.
+        try await collection.document(taskId).updateData([
+            "priority": priority.rawValue,
+            "order": order
+        ])
+    }
+
     // MARK: - Real-time observation
 
     func observeTasks(forOwner ownerUid: String) -> AnyPublisher<[TaskItem], Error> {

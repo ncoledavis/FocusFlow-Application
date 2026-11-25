@@ -1,26 +1,159 @@
 rules_version = '2';
 
-// Interim rules for Task 3: each user can only read and write their own tasks.
-// Supporter access (view / add / edit) is added in Task 6.9.
+// FocusFlow security rules.
+//
+// tasks/{taskId}           A task. The owner has full control. A supporter's
+//                          power depends on their link's permission:
+//                            view = read only
+//                            add  = read, and create tasks
+//                            edit = add, plus change a task's priority/order
+//                          Only the owner can delete, or change anything else.
+// links/{ownerUid}_{supporterUid}   An active supporter link. The ID is derived
+//                          from both UIDs so these rules can find it by path
+//                          (rules can't run queries).
+// invites/{code}           A pending invite. The ID is the random invite code,
+//                          so only someone holding the code can fetch it.
 //
 // To apply: Firebase console > Firestore Database > Rules > paste > Publish.
+// To test: see firestore-tests/README.md.
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isPermission(value) {
+      return value in ['view', 'add', 'edit'];
+    }
+
+    function isPriority(value) {
+      return value in ['low', 'medium', 'high', 'urgent'];
+    }
+
+    // ---- Supporter access to an owner's tasks ----------------------------
+
+    function linkPath(ownerUid) {
+      return /databases/$(database)/documents/links/$(ownerUid + '_' + request.auth.uid);
+    }
+
+    function isSupporterOf(ownerUid) {
+      return signedIn()
+        && exists(linkPath(ownerUid))
+        && get(linkPath(ownerUid)).data.status == 'active';
+    }
+
+    // The permission the signed-in user's link gives them, or false-y checks below.
+    function supporterCanAdd(ownerUid) {
+      return isSupporterOf(ownerUid)
+        && get(linkPath(ownerUid)).data.permission in ['add', 'edit'];
+    }
+
+    function supporterCanEdit(ownerUid) {
+      return isSupporterOf(ownerUid)
+        && get(linkPath(ownerUid)).data.permission == 'edit';
+    }
+
+    // ---- Tasks ------------------------------------------------------------
+
     match /tasks/{taskId} {
-      allow read: if request.auth != null
-                  && resource.data.ownerUid == request.auth.uid;
 
-      allow create: if request.auth != null
-                    && request.resource.data.ownerUid == request.auth.uid
-                    && request.resource.data.createdBy == request.auth.uid;
+      allow read: if signedIn()
+        && (resource.data.ownerUid == request.auth.uid
+            || isSupporterOf(resource.data.ownerUid));
 
-      allow update: if request.auth != null
-                    && resource.data.ownerUid == request.auth.uid
-                    && request.resource.data.ownerUid == request.auth.uid;
+      allow create: if signedIn() && (
+        // The owner creating their own task.
+        (request.resource.data.ownerUid == request.auth.uid
+          && request.resource.data.createdBy == request.auth.uid)
+        // A supporter with "add" or "edit": authored by them, starts pending.
+        || (supporterCanAdd(request.resource.data.ownerUid)
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.status == 'pending'
+          && isPriority(request.resource.data.priority))
+      );
 
-      allow delete: if request.auth != null
-                    && resource.data.ownerUid == request.auth.uid;
+      allow update: if signedIn() && (
+        // The owner can change their own task, but not hand it to someone else.
+        (resource.data.ownerUid == request.auth.uid
+          && request.resource.data.ownerUid == request.auth.uid)
+        // A supporter with "edit" can change priority and order, and nothing else.
+        || (supporterCanEdit(resource.data.ownerUid)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['priority', 'order'])
+          && isPriority(request.resource.data.priority)
+          && request.resource.data.order is int)
+      );
+
+      allow delete: if signedIn()
+        && resource.data.ownerUid == request.auth.uid;
+    }
+
+    // ---- Active links -----------------------------------------------------
+
+    match /links/{linkId} {
+
+      // Either person can see their link.
+      allow read: if signedIn()
+        && (resource.data.ownerUid == request.auth.uid
+            || resource.data.supporterUid == request.auth.uid);
+
+      // Created by the supporter while accepting an invite, in the same batch
+      // that deletes the invite. The invite must exist, belong to the owner
+      // named on the link, grant the same permission, and be gone afterwards, so
+      // a code works once and the permission can't be upgraded.
+      allow create: if signedIn()
+        && request.resource.data.keys().hasAll(['ownerUid', 'supporterUid', 'inviteCode', 'permission', 'status'])
+        && request.resource.data.supporterUid == request.auth.uid
+        && request.resource.data.ownerUid != request.auth.uid
+        && linkId == request.resource.data.ownerUid + '_' + request.auth.uid
+        && request.resource.data.status == 'active'
+        && exists(/databases/$(database)/documents/invites/$(request.resource.data.inviteCode))
+        && get(/databases/$(database)/documents/invites/$(request.resource.data.inviteCode)).data.ownerUid
+             == request.resource.data.ownerUid
+        && get(/databases/$(database)/documents/invites/$(request.resource.data.inviteCode)).data.permission
+             == request.resource.data.permission
+        && !existsAfter(/databases/$(database)/documents/invites/$(request.resource.data.inviteCode));
+
+      // The owner can change what the supporter may do.
+      allow update: if signedIn()
+        && resource.data.ownerUid == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['permission'])
+        && isPermission(request.resource.data.permission);
+
+      // The owner can remove a supporter.
+      allow delete: if signedIn()
+        && resource.data.ownerUid == request.auth.uid;
+    }
+
+    // ---- Pending invites --------------------------------------------------
+
+    match /invites/{code} {
+
+      // Anyone signed in can fetch an invite if they know its code. Nobody can
+      // list invites except their own, so codes can't be harvested.
+      allow get: if signedIn();
+      allow list: if signedIn()
+        && resource.data.ownerUid == request.auth.uid;
+
+      allow create: if signedIn()
+        && code.size() == 8
+        && request.resource.data.ownerUid == request.auth.uid
+        && isPermission(request.resource.data.permission);
+
+      // The owner can change a pending invite's permission.
+      allow update: if signedIn()
+        && resource.data.ownerUid == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['permission'])
+        && isPermission(request.resource.data.permission);
+
+      // The owner can cancel it. A supporter can delete it only as part of
+      // accepting it: the batch must also create their link from this code.
+      allow delete: if signedIn() && (
+        resource.data.ownerUid == request.auth.uid
+        || (existsAfter(/databases/$(database)/documents/links/$(resource.data.ownerUid + '_' + request.auth.uid))
+            && getAfter(/databases/$(database)/documents/links/$(resource.data.ownerUid + '_' + request.auth.uid)).data.inviteCode
+                 == code)
+      );
     }
   }
 }

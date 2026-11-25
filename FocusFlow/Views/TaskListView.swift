@@ -1,56 +1,115 @@
 import SwiftUI
 
-/// The signed-in user's live task list, with an "Add task" button.
+/// A live task list with an "Add task" button. The owner sees their own list;
+/// a supporter sees the owner's list with only the controls their permission
+/// allows.
 struct TaskListView: View {
     @StateObject private var viewModel: TaskListViewModel
     @State private var isAddingTask = false
 
-    init(repository: TaskRepository, ownerUid: String) {
+    private let access: TaskListAccess
+    private let title: String
+
+    /// - Parameters:
+    ///   - ownerUid: Whose tasks to show.
+    ///   - currentUid: Who is looking. Defaults to the owner.
+    ///   - access: What they may do. Defaults to the owner's full access.
+    ///   - title: The navigation title.
+    init(
+        repository: TaskRepository,
+        ownerUid: String,
+        currentUid: String? = nil,
+        access: TaskListAccess = .owner,
+        title: String = "My Tasks"
+    ) {
         _viewModel = StateObject(
-            wrappedValue: TaskListViewModel(repository: repository, ownerUid: ownerUid)
+            wrappedValue: TaskListViewModel(
+                repository: repository,
+                ownerUid: ownerUid,
+                currentUid: currentUid,
+                access: access
+            )
         )
+        self.access = access
+        self.title = title
     }
 
     var body: some View {
         content
-            .navigationTitle("My Tasks")
+            .navigationTitle(title)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        isAddingTask = true
-                    } label: {
-                        Label("Add task", systemImage: "plus")
+                    if viewModel.access.canAdd {
+                        Button {
+                            isAddingTask = true
+                        } label: {
+                            Label("Add task", systemImage: "plus")
+                        }
                     }
                 }
             }
             .sheet(isPresented: $isAddingTask) {
                 AddTaskView(viewModel: viewModel)
             }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                if viewModel.access.isSupporter {
+                    roleBanner
+                }
+            }
             .safeAreaInset(edge: .bottom) {
                 if let message = viewModel.errorMessage {
                     ErrorBanner(message: message, onDismiss: viewModel.clearError)
                 }
+            }
+            .onChange(of: access) { _, newAccess in
+                // The owner changed this supporter's permission while the list
+                // was open.
+                viewModel.access = newAccess
             }
             .task { viewModel.start() }
     }
 
     // MARK: - Content
 
+    private var roleBanner: some View {
+        Label(viewModel.access.roleDescription, systemImage: "person.2")
+            .font(.footnote.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+            .background(.bar)
+    }
+
     @ViewBuilder
     private var content: some View {
         if viewModel.isLoading && viewModel.allTasks.isEmpty {
             ProgressView("Loading tasks…")
         } else if viewModel.allTasks.isEmpty {
+            emptyState
+        } else {
+            taskList
+        }
+    }
+
+    @ViewBuilder
+    private var emptyState: some View {
+        if viewModel.access.canAdd {
             ContentUnavailableView {
                 Label("No tasks yet", systemImage: "checklist")
             } description: {
-                Text("Add your first task and give it a time budget.")
+                Text(viewModel.access.isSupporter
+                     ? "Add a task to help get things started."
+                     : "Add your first task and give it a time budget.")
             } actions: {
                 Button("Add task") { isAddingTask = true }
                     .buttonStyle(.borderedProminent)
             }
         } else {
-            taskList
+            ContentUnavailableView {
+                Label("No tasks yet", systemImage: "checklist")
+            } description: {
+                Text("Tasks will show up here as they're added.")
+            }
         }
     }
 
@@ -61,9 +120,7 @@ struct TaskListView: View {
                     ForEach(viewModel.activeTasks) { task in
                         row(for: task)
                     }
-                    .onDelete { offsets in
-                        delete(at: offsets, in: viewModel.activeTasks)
-                    }
+                    .onDelete(perform: deleteAction(for: viewModel.activeTasks))
                 }
             }
             if !viewModel.finishedTasks.isEmpty {
@@ -71,9 +128,7 @@ struct TaskListView: View {
                     ForEach(viewModel.finishedTasks) { task in
                         row(for: task)
                     }
-                    .onDelete { offsets in
-                        delete(at: offsets, in: viewModel.finishedTasks)
-                    }
+                    .onDelete(perform: deleteAction(for: viewModel.finishedTasks))
                 }
             }
         }
@@ -82,28 +137,47 @@ struct TaskListView: View {
     private func row(for task: TaskItem) -> some View {
         TaskRow(task: task)
             .contextMenu {
-                Menu("Change priority") {
-                    ForEach(Priority.allCases) { priority in
-                        Button(priority.title) {
-                            Task { await viewModel.setPriority(priority, for: task) }
+                if viewModel.access.canReorder {
+                    if task.status.isActive {
+                        Button {
+                            Task { await viewModel.move(task, .up) }
+                        } label: {
+                            Label("Move up", systemImage: "arrow.up")
+                        }
+                        Button {
+                            Task { await viewModel.move(task, .down) }
+                        } label: {
+                            Label("Move down", systemImage: "arrow.down")
+                        }
+                    }
+                    Menu("Change priority") {
+                        ForEach(Priority.allCases) { priority in
+                            Button(priority.title) {
+                                Task { await viewModel.setPriority(priority, for: task) }
+                            }
                         }
                     }
                 }
-                Button("Delete", role: .destructive) {
-                    Task { await viewModel.delete(task) }
+                if viewModel.access.canModify {
+                    Button("Delete", role: .destructive) {
+                        Task { await viewModel.delete(task) }
+                    }
                 }
             }
     }
 
-    private func delete(at offsets: IndexSet, in tasks: [TaskItem]) {
-        let targets = offsets.map { tasks[$0] }
-        Task {
-            for task in targets {
-                await viewModel.delete(task)
+    /// Swipe-to-delete is only offered to people who may delete.
+    private func deleteAction(for tasks: [TaskItem]) -> ((IndexSet) -> Void)? {
+        guard viewModel.access.canModify else { return nil }
+        return { offsets in
+            let targets = offsets.map { tasks[$0] }
+            Task {
+                for task in targets {
+                    await viewModel.delete(task)
+                }
             }
         }
     }
-
 }
 
 /// One row in the task list: title, priority, and time budget.
@@ -139,6 +213,12 @@ private struct TaskRow: View {
             }
             .font(.caption)
             .foregroundStyle(.secondary)
+
+            if task.createdBy != task.ownerUid {
+                Label("Added by a supporter", systemImage: "person.badge.plus")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
         .padding(.vertical, 4)
         .accessibilityElement(children: .combine)
@@ -161,9 +241,24 @@ private struct TaskRow: View {
                 TaskItem(id: "1", ownerUid: "me", title: "Write report", priority: .high,
                          durationMinutes: 45, createdBy: "me"),
                 TaskItem(id: "2", ownerUid: "me", title: "Email advisor", priority: .low,
-                         durationMinutes: 10, createdBy: "me", order: 1)
+                         durationMinutes: 10, createdBy: "helper", order: 1)
             ]),
             ownerUid: "me"
+        )
+    }
+}
+
+#Preview("Supporter, view only") {
+    NavigationStack {
+        TaskListView(
+            repository: MockTaskRepository(initialTasks: [
+                TaskItem(id: "1", ownerUid: "me", title: "Write report", priority: .high,
+                         durationMinutes: 45, createdBy: "me")
+            ]),
+            ownerUid: "me",
+            currentUid: "helper",
+            access: .supporter(.view),
+            title: "alex@example.com"
         )
     }
 }

@@ -2,7 +2,9 @@ import Foundation
 import Combine
 
 /// Subscribes to a user's tasks and exposes them sorted for display, plus the
-/// add / update / delete actions the task list UI needs.
+/// add / update / reorder / delete actions the task list UI needs. What each
+/// action is allowed to do depends on `access`: the owner can do everything,
+/// a supporter only what the owner's permission grants.
 @MainActor
 final class TaskListViewModel: ObservableObject {
 
@@ -14,6 +16,10 @@ final class TaskListViewModel: ObservableObject {
 
     @Published var errorMessage: String?
 
+    /// What the current person may do with this list. Changes while the screen
+    /// is open if the owner edits the supporter's permission.
+    @Published var access: TaskListAccess
+
     let ownerUid: String
 
     private let repository: TaskRepository
@@ -23,11 +29,18 @@ final class TaskListViewModel: ObservableObject {
     /// - Parameters:
     ///   - ownerUid: Whose task list this is.
     ///   - currentUid: Who is acting. Defaults to the owner; a supporter
-    ///     editing someone else's list passes their own UID (Task 6).
-    init(repository: TaskRepository, ownerUid: String, currentUid: String? = nil) {
+    ///     working on someone else's list passes their own UID.
+    ///   - access: What the current person may do. Defaults to the owner.
+    init(
+        repository: TaskRepository,
+        ownerUid: String,
+        currentUid: String? = nil,
+        access: TaskListAccess = .owner
+    ) {
         self.repository = repository
         self.ownerUid = ownerUid
         self.currentUid = currentUid ?? ownerUid
+        self.access = access
     }
 
     // MARK: - Derived lists
@@ -94,6 +107,7 @@ final class TaskListViewModel: ObservableObject {
         priority: Priority = .medium,
         schedule: NewTaskSchedule
     ) async -> Bool {
+        guard access.canAdd else { return deny("add tasks to this list") }
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedTitle.isEmpty else {
             errorMessage = "Give your task a title."
@@ -131,21 +145,63 @@ final class TaskListViewModel: ObservableObject {
         return await perform { try await self.repository.create(task) }
     }
 
+    /// Replaces a task. Owner only: a supporter may change just priority and
+    /// order, through `setPriority` and `move`.
     @discardableResult
     func update(_ task: TaskItem) async -> Bool {
-        await perform { try await self.repository.update(task) }
+        guard access.canModify else { return deny("edit tasks in this list") }
+        return await perform { try await self.repository.update(task) }
     }
 
+    /// Changes a task's priority, leaving its other fields alone.
     @discardableResult
     func setPriority(_ priority: Priority, for task: TaskItem) async -> Bool {
-        var changed = task
-        changed.priority = priority
-        return await update(changed)
+        guard access.canReorder else { return deny("change priority in this list") }
+        return await perform {
+            try await self.repository.updateOrdering(taskId: task.id, priority: priority, order: task.order)
+        }
+    }
+
+    enum MoveDirection {
+        case up
+        case down
+    }
+
+    /// Moves a task one place up or down among the active tasks of the same
+    /// priority, by renumbering their `order`. Returns false, with no error,
+    /// if the task is already at that end.
+    @discardableResult
+    func move(_ task: TaskItem, _ direction: MoveDirection) async -> Bool {
+        guard access.canReorder else { return deny("change the order of tasks in this list") }
+
+        let group = activeTasks.filter { $0.priority == task.priority }
+        guard let index = group.firstIndex(where: { $0.id == task.id }) else { return false }
+        let target = direction == .up ? index - 1 : index + 1
+        guard group.indices.contains(target) else { return false }
+
+        // Swap the two positions, then number the group consecutively from its
+        // lowest order. This also resolves ties, and only changed tasks are
+        // written.
+        var reordered = group
+        reordered.swapAt(index, target)
+        let base = group.map(\.order).min() ?? 0
+        let changes = reordered.enumerated().filter { $0.element.order != base + $0.offset }
+
+        return await perform {
+            for (offset, item) in changes {
+                try await self.repository.updateOrdering(
+                    taskId: item.id,
+                    priority: item.priority,
+                    order: base + offset
+                )
+            }
+        }
     }
 
     @discardableResult
     func delete(_ task: TaskItem) async -> Bool {
-        await perform { try await self.repository.delete(taskId: task.id) }
+        guard access.canModify else { return deny("delete tasks from this list") }
+        return await perform { try await self.repository.delete(taskId: task.id) }
     }
 
     func clearError() {
@@ -158,6 +214,11 @@ final class TaskListViewModel: ObservableObject {
     /// priority.
     private func nextOrder() -> Int {
         (allTasks.map(\.order).max() ?? -1) + 1
+    }
+
+    private func deny(_ action: String) -> Bool {
+        errorMessage = "You don't have permission to \(action)."
+        return false
     }
 
     private static func normalizedNotes(_ notes: String) -> String? {

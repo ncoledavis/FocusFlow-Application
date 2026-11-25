@@ -35,6 +35,14 @@ final class MockTaskRepository: TaskRepository {
         store.value[taskId] = nil
     }
 
+    func updateOrdering(taskId: String, priority: Priority, order: Int) async throws {
+        try throwPendingError()
+        guard var task = store.value[taskId] else { throw TaskRepositoryError.notFound }
+        task.priority = priority
+        task.order = order
+        store.value[taskId] = task
+    }
+
     func observeTasks(forOwner ownerUid: String) -> AnyPublisher<[TaskItem], Error> {
         if let observeError {
             return Fail(error: observeError).eraseToAnyPublisher()
