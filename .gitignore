@@ -17,3 +17,6 @@ xcuserdata/
 # SwiftPM
 .swiftpm/
 .build/
+
+# Firebase project config (download from the Firebase console)
+GoogleService-Info.plist
